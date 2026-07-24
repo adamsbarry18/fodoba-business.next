@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { get } from "@vercel/blob"
+import { requireSession } from "@/lib/auth/require-session"
 
 const PATHNAME_PATTERN = /^products\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9._-]+$/
 
 export async function GET(req: NextRequest) {
+  const authResult = await requireSession(req)
+  if ("response" in authResult) return authResult.response
+
   try {
     const pathname = req.nextUrl.searchParams.get("pathname")
     if (!pathname || !PATHNAME_PATTERN.test(pathname)) {

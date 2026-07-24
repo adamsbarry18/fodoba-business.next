@@ -46,6 +46,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "html5-qrcode": "^2.3.8",
+    "jose": "^6.2.4",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.475.0",

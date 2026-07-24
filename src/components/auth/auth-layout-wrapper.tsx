@@ -3,17 +3,19 @@
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { LoadingScreen } from "@/components/ui/loading-screen"
-import { useRouter, usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
+import { Suspense, useEffect } from "react"
 import { useT } from "@/i18n/context"
+import { resolveSafeNextPath } from "@/lib/auth/safe-next-path"
 
-const PUBLIC_PATHS = ["/login"]
+const PUBLIC_PATHS = ["/login", "/forgot-password"]
 
-export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
+function AuthLayoutInner({ children }: { children: React.ReactNode }) {
   const { currentUser, loading: authLoading } = useAuth()
   const { loading: storeLoading } = useStore()
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const t = useT()
 
   const isPublicPath = PUBLIC_PATHS.includes(pathname)
@@ -29,9 +31,17 @@ export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
     }
 
     if (currentUser && pathname === "/login") {
-      router.push("/dashboard")
+      router.push(resolveSafeNextPath(searchParams.get("next")))
     }
-  }, [currentUser, authLoading, waitingForStore, pathname, router, isPublicPath])
+  }, [
+    currentUser,
+    authLoading,
+    waitingForStore,
+    pathname,
+    router,
+    isPublicPath,
+    searchParams,
+  ])
 
   if (authLoading || waitingForStore) {
     return (
@@ -48,3 +58,10 @@ export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <AuthLayoutInner>{children}</AuthLayoutInner>
+    </Suspense>
+  )
+}

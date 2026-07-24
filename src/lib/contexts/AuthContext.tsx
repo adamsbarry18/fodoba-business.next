@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const unsubscribe = AuthService.subscribeToAuthChanges(async (user) => {
+    const unsubscribeAuth = AuthService.subscribeToAuthChanges(async (user) => {
       if (user) {
         try {
           const profile = await fetchProfile(user.uid, user);
@@ -104,7 +104,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Rafraîchit le cookie httpOnly à chaque renouvellement de l'ID token (~1h)
+    const unsubscribeToken = AuthService.subscribeToIdToken(async (user) => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        await AuthService.createServerSession(idToken);
+      } catch (error) {
+        console.error("Échec de synchronisation de la session serveur:", error);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeToken();
+    };
   }, []);
 
   const refreshProfile = async () => {

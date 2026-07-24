@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
 import { mkdir, writeFile } from "fs/promises"
 import path from "path"
+import { requireSession } from "@/lib/auth/require-session"
 
 const MAX_SIZE = 4.5 * 1024 * 1024
 const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "webp", "gif"])
@@ -30,6 +31,9 @@ async function saveLocal(productId: string, file: File, filename: string): Promi
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireSession(req)
+  if ("response" in authResult) return authResult.response
+
   try {
     const formData = await req.formData()
     const productId = formData.get("productId")

@@ -4,6 +4,7 @@ import {
   signOut as firebaseSignOut, 
   sendPasswordResetEmail,
   onAuthStateChanged,
+  onIdTokenChanged,
   User,
   updatePassword as firebaseUpdatePassword,
   reauthenticateWithCredential,
@@ -21,25 +22,66 @@ function getAuthErrorCode(error: unknown): string | undefined {
 }
 
 /**
- * Service gérant les interactions directes avec Firebase Authentication.
+ * Service gérant les interactions directes avec Firebase Authentication
+ * et la synchronisation du cookie de session serveur.
  */
 export const AuthService = {
   /**
-   * Connecte un utilisateur avec email et mot de passe.
+   * Pose le cookie httpOnly via POST /api/auth/session.
+   */
+  async createServerSession(idToken: string): Promise<void> {
+    const res = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) {
+      throw new Error("Impossible de créer la session serveur.");
+    }
+  },
+
+  /**
+   * Efface le cookie de session (idempotent).
+   */
+  async clearServerSession(): Promise<void> {
+    try {
+      await fetch("/api/auth/session", { method: "DELETE" });
+    } catch {
+      // best-effort : la déconnexion client doit continuer
+    }
+  },
+
+  /**
+   * Connecte un utilisateur avec email et mot de passe, puis synchronise le cookie.
    */
   async login(email: string, pass: string) {
     if (!auth) throw new Error("Firebase Auth n'est pas configuré.");
     try {
-      return await signInWithEmailAndPassword(auth, email, pass);
+      const credential = await signInWithEmailAndPassword(auth, email, pass);
+      try {
+        const idToken = await credential.user.getIdToken();
+        await this.createServerSession(idToken);
+      } catch {
+        await firebaseSignOut(auth);
+        throw new Error("Impossible de créer la session serveur.");
+      }
+      return credential;
     } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message === "Impossible de créer la session serveur."
+      ) {
+        throw error;
+      }
       throw this.handleAuthError(error, "login");
     }
   },
 
   /**
-   * Déconnecte l'utilisateur actuel.
+   * Déconnecte l'utilisateur et efface le cookie serveur.
    */
   async logout() {
+    await this.clearServerSession();
     if (!auth) return;
     try {
       await firebaseSignOut(auth);
@@ -78,11 +120,19 @@ export const AuthService = {
   },
 
   /**
-   * Observe les changements d'état d'authentification.
+   * Observe les changements d'état d'authentification (sign-in / sign-out).
    */
   subscribeToAuthChanges(callback: (user: User | null) => void) {
-    if (!auth) return () => {}; // Retourne une fonction vide si non initialisé
+    if (!auth) return () => {};
     return onAuthStateChanged(auth, callback);
+  },
+
+  /**
+   * Observe les changements / rafraîchissements de l'ID token (refresh ~1h).
+   */
+  subscribeToIdToken(callback: (user: User | null) => void) {
+    if (!auth) return () => {};
+    return onIdTokenChanged(auth, callback);
   },
 
   /**
