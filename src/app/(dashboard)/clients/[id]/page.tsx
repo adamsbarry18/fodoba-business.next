@@ -69,6 +69,7 @@ export default function ClientDetailsPage() {
     () => availableStores.map((store) => store.id),
     [availableStores]
   )
+  const authorizedStoreIdsKey = authorizedStoreIds.join(",")
 
   const [amount, setAmount] = useState<string>("")
   const [method, setMethod] = useState<ClientPayment["method"]>("CASH")
@@ -77,6 +78,7 @@ export default function ClientDetailsPage() {
 
   const loadData = useCallback(async () => {
     const clientId = params.id as string
+    const storeIds = authorizedStoreIdsKey ? authorizedStoreIdsKey.split(",") : []
     setLoading(true)
 
     try {
@@ -90,15 +92,15 @@ export default function ClientDetailsPage() {
 
       setClient(clientData)
 
-      if (authorizedStoreIds.length === 0) {
+      if (storeIds.length === 0) {
         setPayments([])
         setSales([])
         return
       }
 
       const [paymentsData, salesData] = await Promise.all([
-        ClientService.getClientPayments(clientId, authorizedStoreIds),
-        ClientService.getClientSales(clientId, authorizedStoreIds),
+        ClientService.getClientPayments(clientId, storeIds),
+        ClientService.getClientSales(clientId, storeIds),
       ])
 
       setPayments(paymentsData)
@@ -109,7 +111,7 @@ export default function ClientDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }, [authorizedStoreIds, params.id, router, t])
+  }, [authorizedStoreIdsKey, params.id, router, t])
 
   useEffect(() => {
     if (storeLoading) return

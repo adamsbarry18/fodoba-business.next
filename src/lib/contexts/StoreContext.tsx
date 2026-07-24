@@ -61,51 +61,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       preferredDefaultId
     )
 
-    setActiveStore(store)
+    setActiveStore((prev) => {
+      if (prev?.id && store?.id === prev.id) {
+        const fresh = stores.find((s) => s.id === prev.id)
+        return fresh ?? store
+      }
+      return store
+    })
 
     if (store) {
       writeSavedActiveStoreId(profile.uid, store.id)
     }
   }, [])
 
-  const loadStoresForUser = useCallback(async () => {
-    const generation = ++loadGenerationRef.current
+  const loadStoresForUser = useCallback(
+    async (profile: UserProfile | null, admin: boolean) => {
+      const generation = ++loadGenerationRef.current
 
-    if (!userProfile) {
-      setAvailableStores([])
-      setActiveStore(null)
-      setLoading(false)
-      clearLegacyActiveStoreKey()
-      return
-    }
-
-    setActiveStore(null)
-    setLoading(true)
-
-    try {
-      const stores = await fetchStoresForProfile(userProfile, isAdmin)
-
-      if (loadGenerationRef.current !== generation) return
-
-      setAvailableStores(stores)
-      applyStoreSelection(userProfile, stores)
-    } catch (error) {
-      if (loadGenerationRef.current !== generation) return
-      console.error("Erreur lors du chargement des boutiques:", error)
-      setAvailableStores([])
-      setActiveStore(null)
-    } finally {
-      if (loadGenerationRef.current === generation) {
+      if (!profile) {
+        setAvailableStores([])
+        setActiveStore(null)
         setLoading(false)
+        clearLegacyActiveStoreKey()
+        return
       }
-    }
-  }, [userProfile, isAdmin, applyStoreSelection])
+
+      setLoading(true)
+
+      try {
+        const stores = await fetchStoresForProfile(profile, admin)
+
+        if (loadGenerationRef.current !== generation) return
+
+        setAvailableStores(stores)
+        applyStoreSelection(profile, stores)
+      } catch (error) {
+        if (loadGenerationRef.current !== generation) return
+        console.error("Erreur lors du chargement des boutiques:", error)
+        setAvailableStores([])
+        setActiveStore(null)
+      } finally {
+        if (loadGenerationRef.current === generation) {
+          setLoading(false)
+        }
+      }
+    },
+    [applyStoreSelection]
+  )
 
   const storeIdsKey = userProfile?.storeIds?.join(",") ?? ""
+  const profileUid = userProfile?.uid
 
   useEffect(() => {
-    void loadStoresForUser()
-  }, [userProfile?.uid, isAdmin, storeIdsKey, loadStoresForUser])
+    // Recharge seulement si uid / storeIds / rôle changent (pas à chaque nouvelle ref profil)
+    void loadStoresForUser(userProfile, isAdmin)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identité userProfile volontairement ignorée
+  }, [profileUid, isAdmin, storeIdsKey, loadStoresForUser])
 
   const setActiveStoreById = (id: string) => {
     const store = availableStores.find((s) => s.id === id)
@@ -119,6 +130,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  const refreshStores = useCallback(() => {
+    return loadStoresForUser(userProfile, isAdmin)
+  }, [loadStoresForUser, userProfile, isAdmin])
+
   return (
     <StoreContext.Provider
       value={{
@@ -126,7 +141,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         availableStores,
         setActiveStoreById,
         loading,
-        refreshStores: loadStoresForUser,
+        refreshStores,
       }}
     >
       {children}

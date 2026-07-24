@@ -120,7 +120,8 @@ export default function PurchasesPage() {
   }
 
   useEffect(() => {
-    if (!activeStore) {
+    const storeId = activeStore?.id
+    if (!storeId) {
       setPurchases([])
       setLoading(false)
       return
@@ -132,7 +133,7 @@ export default function PurchasesPage() {
       setLoading(true)
       try {
         const result = await PurchaseService.listPurchases(
-          { storeId: activeStore.id },
+          { storeId },
           PAGE_SIZE
         )
         if (cancelled) return
@@ -146,11 +147,11 @@ export default function PurchasesPage() {
       }
     }
 
-    fetchInitial()
+    void fetchInitial()
     return () => {
       cancelled = true
     }
-  }, [activeStore, t])
+  }, [activeStore?.id, t])
 
   const filteredPurchases = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()

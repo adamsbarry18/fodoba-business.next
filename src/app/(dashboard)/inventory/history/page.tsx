@@ -123,7 +123,8 @@ export default function StockHistoryPage() {
   }
 
   useEffect(() => {
-    if (!activeStore) {
+    const storeId = activeStore?.id
+    if (!storeId) {
       setMovements([])
       setLoading(false)
       return
@@ -135,7 +136,7 @@ export default function StockHistoryPage() {
       setLoading(true)
       try {
         const result = await InventoryService.listMovements(
-          { storeId: activeStore.id },
+          { storeId },
           PAGE_SIZE
         )
         if (cancelled) return
@@ -149,11 +150,11 @@ export default function StockHistoryPage() {
       }
     }
 
-    fetchInitial()
+    void fetchInitial()
     return () => {
       cancelled = true
     }
-  }, [activeStore, t])
+  }, [activeStore?.id, t])
 
   const filteredMovements = useMemo(
     () => filterMovements(movements, { search: searchTerm, type: typeFilter }),

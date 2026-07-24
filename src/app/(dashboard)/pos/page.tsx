@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { DocumentSnapshot } from "firebase/firestore"
 import { ProductService } from "@/services/product.service"
 import { ClientService } from "@/services/client.service"
@@ -120,23 +120,25 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false)
   const [cashSession, setCashSession] = useState<CashSession | null>(null)
 
+  const storeId = activeStore?.id
+
   const loadStocksForProducts = useCallback(
     async (productList: Product[], merge = false) => {
-      if (!activeStore || productList.length === 0) {
+      if (!storeId || productList.length === 0) {
         if (!merge) setStocks({})
         return
       }
       try {
         const records = await ProductService.getStockRecordsForProducts(
           productList,
-          activeStore.id
+          storeId
         )
         setStocks((prev) => (merge ? { ...prev, ...records } : records))
       } catch {
         // Stock display is non-blocking for POS
       }
     },
-    [activeStore]
+    [storeId]
   )
 
   // Success states
@@ -154,7 +156,7 @@ export default function POSPage() {
         setHasMore(prodResult.products.length === POS_FETCH_SIZE)
         setClients(clientResult)
         setCategories(categoriesResult)
-        if (activeStore) {
+        if (storeId) {
           void loadStocksForProducts(prodResult.products)
         }
 
@@ -180,8 +182,8 @@ export default function POSPage() {
         setLoading(false)
       }
     }
-    loadInitialData()
-  }, [activeStore, loadStocksForProducts, t])
+    void loadInitialData()
+  }, [storeId, loadStocksForProducts, t])
 
   useEffect(() => {
     if (!activeStore?.id) {
@@ -193,35 +195,51 @@ export default function POSPage() {
       .catch(() => setCashSession(null))
   }, [activeStore?.id, isPaymentOpen, isSuccessOpen])
 
-  // Load products when active category changes (excluding search query matches)
+  // Refs pour pagination : évite de recréer loadProductsByCategory à chaque fetch
+  // (sinon l'effet search relance le chargement en boucle → spinner infini).
+  const lastVisibleRef = useRef(lastVisible)
+  const hasMoreRef = useRef(hasMore)
+  const loadingMoreRef = useRef(loadingMore)
+  const prevSearchTermRef = useRef(searchTerm)
+
+  useEffect(() => {
+    lastVisibleRef.current = lastVisible
+  }, [lastVisible])
+  useEffect(() => {
+    hasMoreRef.current = hasMore
+  }, [hasMore])
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore
+  }, [loadingMore])
+
   const loadProductsByCategory = useCallback(async (categoryId: string, isLoadMore = false) => {
     if (isLoadMore) {
-      if (loadingMore || !hasMore) return
+      if (loadingMoreRef.current || !hasMoreRef.current) return
       setLoadingMore(true)
     } else {
       setLoading(true)
     }
-    
+
     try {
       const filters = {
         active: true,
-        categoryId: categoryId === "all" ? undefined : categoryId
+        categoryId: categoryId === "all" ? undefined : categoryId,
       }
-      
+
       const result = await ProductService.listProducts(
-        filters, 
-        POS_FETCH_SIZE, 
-        isLoadMore ? lastVisible : undefined
+        filters,
+        POS_FETCH_SIZE,
+        isLoadMore ? lastVisibleRef.current : undefined
       )
-      
+
       if (isLoadMore) {
-        setProducts(prev => [...prev, ...result.products])
+        setProducts((prev) => [...prev, ...result.products])
         void loadStocksForProducts(result.products, true)
       } else {
         setProducts(result.products)
         void loadStocksForProducts(result.products)
       }
-      
+
       setLastVisible(result.lastVisible)
       setHasMore(result.products.length === POS_FETCH_SIZE)
     } catch {
@@ -230,13 +248,15 @@ export default function POSPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [hasMore, lastVisible, loadStocksForProducts, loadingMore, t])
+  }, [loadStocksForProducts, t])
 
   // Handle Category Selection
   const handleCategoryChange = (categoryId: string) => {
     setSelectedCategoryId(categoryId)
-    setSearchTerm("") // Clear search when changing category
-    loadProductsByCategory(categoryId)
+    // Évite un double fetch via l'effet search (clear → reload catégorie)
+    prevSearchTermRef.current = ""
+    setSearchTerm("")
+    void loadProductsByCategory(categoryId)
   }
 
   // Load more handler
@@ -244,12 +264,14 @@ export default function POSPage() {
     loadProductsByCategory(selectedCategoryId, true)
   }
 
-  // Hybrid Search logic (real-time Firestore querying on typing with debounce)
+  // Recherche Firestore debouncée ; reload catégorie uniquement quand on efface la recherche
   useEffect(() => {
+    const prevSearch = prevSearchTermRef.current
+    prevSearchTermRef.current = searchTerm
+
     if (!searchTerm.trim()) {
-      // Re-load current category if search query is cleared
-      if (products.length === 0 || searchTerm === "") {
-        loadProductsByCategory(selectedCategoryId)
+      if (prevSearch.trim()) {
+        void loadProductsByCategory(selectedCategoryId)
       }
       return
     }
@@ -259,7 +281,7 @@ export default function POSPage() {
       try {
         const searchResults = await ProductService.searchProducts(searchTerm)
         setProducts(searchResults)
-        setHasMore(false) // search returns maximum matches
+        setHasMore(false)
         void loadStocksForProducts(searchResults)
       } catch {
         toast.error(t("pos.errorSearch"))
@@ -269,7 +291,7 @@ export default function POSPage() {
     }, 450)
 
     return () => clearTimeout(searchDebounce)
-  }, [searchTerm, loadProductsByCategory, loadStocksForProducts, products.length, selectedCategoryId, t])
+  }, [searchTerm, selectedCategoryId, loadProductsByCategory, loadStocksForProducts, t])
 
   // Barcode / douchette / caméra
   const addToCart = useCallback((product: Product, tier: PriceTier = "retail") => {

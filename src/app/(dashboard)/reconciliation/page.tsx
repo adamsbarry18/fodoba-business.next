@@ -106,7 +106,8 @@ export default function ReconciliationPage() {
   )
 
   const loadData = useCallback(async () => {
-    if (!activeStore) {
+    const storeId = activeStore?.id
+    if (!storeId) {
       setActiveSession(null)
       setMovements([])
       setHistory([])
@@ -116,14 +117,14 @@ export default function ReconciliationPage() {
     setLoading(true)
     try {
       const [session, pastSessions] = await Promise.all([
-        CashService.getActiveSession(activeStore.id),
-        CashService.listSessions(activeStore.id, 10),
+        CashService.getActiveSession(storeId),
+        CashService.listSessions(storeId, 10),
       ])
       setActiveSession(session)
       setHistory(pastSessions)
 
       if (session) {
-        const moves = await CashService.getMovements(session.id, activeStore.id)
+        const moves = await CashService.getMovements(session.id, storeId)
         setMovements(moves)
         const initialActual: Record<string, string> = {}
         PAYMENT_METHOD_IDS.forEach((m) => {
@@ -140,10 +141,10 @@ export default function ReconciliationPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeStore, t])
+  }, [activeStore?.id, t])
 
   useEffect(() => {
-    loadData()
+    void loadData()
   }, [loadData])
 
   const movementStats = useMemo(() => getMovementStats(movements), [movements])

@@ -93,7 +93,9 @@ export default function DashboardPage() {
   } satisfies ChartConfig), [t])
 
   const loadDashboardData = useCallback(async () => {
-    if (!userProfile || !activeStore) {
+    const uid = userProfile?.uid
+    const storeId = activeStore?.id
+    if (!uid || !storeId) {
       setLoading(false)
       return
     }
@@ -102,8 +104,8 @@ export default function DashboardPage() {
       const [clientsRes, suppliersRes, salesRes, sessionRes, productsRes] = await Promise.all([
         ClientService.listClients(),
         SupplierService.listSuppliers(),
-        SaleService.listRecentSales(activeStore.id, 200),
-        CashService.getActiveSession(activeStore.id),
+        SaleService.listRecentSales(storeId, 200),
+        CashService.getActiveSession(storeId),
         ProductService.listProducts({ active: true }, 100),
       ])
 
@@ -115,7 +117,7 @@ export default function DashboardPage() {
       const productIds = productsRes.products.map((p) => p.id)
       const stocks = await ProductService.getStockLevelsForProducts(
         productIds,
-        activeStore.id
+        storeId
       )
 
       const alerts = productsRes.products
@@ -132,10 +134,10 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [userProfile, activeStore, t])
+  }, [userProfile?.uid, activeStore?.id, t])
 
   useEffect(() => {
-    loadDashboardData()
+    void loadDashboardData()
   }, [loadDashboardData])
 
   const stats = useMemo(

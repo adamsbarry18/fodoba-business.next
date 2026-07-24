@@ -128,7 +128,7 @@ export default function ProductDetailsPage() {
       setDraftPackaging(0)
       setDraftDetail(record.quantity)
     }
-  }, [activeStore, stockRecords, product])
+  }, [activeStore?.id, stockRecords, product])
 
   const parseQtyInput = (raw: string) => {
     if (raw.trim() === "") return 0

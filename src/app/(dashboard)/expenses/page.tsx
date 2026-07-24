@@ -89,7 +89,8 @@ export default function ExpensesPage() {
   }
 
   useEffect(() => {
-    if (!activeStore) {
+    const storeId = activeStore?.id
+    if (!storeId) {
       setExpenses([])
       setLoading(false)
       return
@@ -100,7 +101,7 @@ export default function ExpensesPage() {
     const fetch = async () => {
       setLoading(true)
       try {
-        const data = await ExpenseService.listExpenses(activeStore.id)
+        const data = await ExpenseService.listExpenses(storeId)
         if (!cancelled) {
           setExpenses(data)
         }
@@ -111,11 +112,11 @@ export default function ExpensesPage() {
       }
     }
 
-    fetch()
+    void fetch()
     return () => {
       cancelled = true
     }
-  }, [activeStore, t])
+  }, [activeStore?.id, t])
 
   const filteredExpenses = useMemo(
     () =>

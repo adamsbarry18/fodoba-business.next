@@ -67,9 +67,11 @@ export default function SupplierDetailsPage() {
     () => availableStores.map((store) => store.id),
     [availableStores]
   )
+  const authorizedStoreIdsKey = authorizedStoreIds.join(",")
 
   const loadData = useCallback(async () => {
     const supplierId = params.id as string
+    const storeIds = authorizedStoreIdsKey ? authorizedStoreIdsKey.split(",") : []
     setLoading(true)
 
     try {
@@ -83,15 +85,15 @@ export default function SupplierDetailsPage() {
 
       setSupplier(supplierData)
 
-      if (authorizedStoreIds.length === 0) {
+      if (storeIds.length === 0) {
         setPayments([])
         setPurchases([])
         return
       }
 
       const [paymentsData, purchasesData] = await Promise.all([
-        SupplierService.getSupplierPayments(supplierId, authorizedStoreIds),
-        SupplierService.getSupplierPurchases(supplierId, authorizedStoreIds),
+        SupplierService.getSupplierPayments(supplierId, storeIds),
+        SupplierService.getSupplierPurchases(supplierId, storeIds),
       ])
 
       setPayments(paymentsData)
@@ -101,7 +103,7 @@ export default function SupplierDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }, [authorizedStoreIds, params.id, router, t])
+  }, [authorizedStoreIdsKey, params.id, router, t])
 
   useEffect(() => {
     if (storeLoading) return

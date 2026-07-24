@@ -146,7 +146,8 @@ export default function NewTransferPage() {
   }, [form, t])
 
   useEffect(() => {
-    if (!productId || !activeStore) {
+    const storeId = activeStore?.id
+    if (!productId || !storeId) {
       setSourceStock(0)
       setDestStock(null)
       return
@@ -157,7 +158,7 @@ export default function NewTransferPage() {
     const fetchStocks = async () => {
       setLoadingStock(true)
       try {
-        const sourceQty = await ProductService.getStockLevel(productId, activeStore.id)
+        const sourceQty = await ProductService.getStockLevel(productId, storeId)
         if (cancelled) return
         setSourceStock(sourceQty)
 
@@ -174,11 +175,11 @@ export default function NewTransferPage() {
       }
     }
 
-    fetchStocks()
+    void fetchStocks()
     return () => {
       cancelled = true
     }
-  }, [activeStore, destinationStoreId, productId, t])
+  }, [activeStore?.id, destinationStoreId, productId, t])
 
   const handleProductScan = async (code: string) => {
     setScanProcessing(true)

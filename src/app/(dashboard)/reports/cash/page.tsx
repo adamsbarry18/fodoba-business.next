@@ -46,14 +46,15 @@ export default function CashReportPage() {
 
   useEffect(() => {
     const load = async () => {
-      if (!activeStore) {
+      const storeId = activeStore?.id
+      if (!storeId) {
         setSessions([])
         setLoading(false)
         return
       }
       setLoading(true)
       try {
-        const res = await CashService.listSessions(activeStore.id, 50)
+        const res = await CashService.listSessions(storeId, 50)
         setSessions(res)
       } catch {
         toast.error(t("common.errorLoading"))
@@ -61,8 +62,8 @@ export default function CashReportPage() {
         setLoading(false)
       }
     }
-    load()
-  }, [activeStore, t])
+    void load()
+  }, [activeStore?.id, t])
 
   const summary = useMemo(() => getCashAuditSummary(sessions), [sessions])
 

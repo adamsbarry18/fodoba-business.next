@@ -13,6 +13,11 @@ export function useBarcodeScannerShortcut(
   options?: UseBarcodeScannerShortcutOptions
 ) {
   const enabled = options?.enabled ?? true
+  const onFocusRef = useRef(options?.onFocus)
+
+  useEffect(() => {
+    onFocusRef.current = options?.onFocus
+  }, [options?.onFocus])
 
   useEffect(() => {
     if (!enabled) return
@@ -22,12 +27,12 @@ export function useBarcodeScannerShortcut(
       e.preventDefault()
       inputRef.current?.focus()
       inputRef.current?.select()
-      options?.onFocus?.()
+      onFocusRef.current?.()
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [enabled, inputRef, options])
+  }, [enabled, inputRef])
 }
 
 /** Détecte une saisie rapide type douchette (hors champs texte classiques). */
