@@ -32,7 +32,7 @@ import { useT } from "@/i18n/context"
 export default function EditUserPage() {
   const router = useRouter()
   const params = useParams()
-  const { userProfile: currentUser, isAdmin } = useAuth()
+  const { userProfile: currentUser, isAdmin, loading: authLoading } = useAuth()
   const t = useT()
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,6 +56,9 @@ export default function EditUserPage() {
   const selectedRole = useWatch({ control: form.control, name: "role" })
 
   useEffect(() => {
+    if (authLoading) return
+    // Profil disparu (logout) ≠ refus admin
+    if (!currentUser) return
     if (!isAdmin) {
       toast.error(t("users.form.accessDenied"))
       router.push("/dashboard")
@@ -92,7 +95,7 @@ export default function EditUserPage() {
     return () => {
       cancelled = true
     }
-  }, [params.id, isAdmin, router, form, t])
+  }, [params.id, authLoading, currentUser, isAdmin, router, form, t])
 
   const onSubmit = async (values: UserProfile) => {
     try {

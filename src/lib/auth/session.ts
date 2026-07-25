@@ -18,7 +18,15 @@ const MIN_SESSION_SECONDS = 60
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null
 
-function isSecureCookie(): boolean {
+/** Secure uniquement si la requête est réellement en HTTPS (évite cookie perdu sur HTTP LAN / mobile). */
+function isSecureRequest(req?: NextRequest): boolean {
+  if (req) {
+    const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim()
+    if (forwarded === "https" || forwarded === "http") {
+      return forwarded === "https"
+    }
+    return req.nextUrl.protocol === "https:"
+  }
   return (
     process.env.NODE_ENV === "production" ||
     process.env.VERCEL_ENV === "production" ||
@@ -101,7 +109,7 @@ export async function getSessionFromRequest(
   }
 }
 
-export function buildSessionCookieOptions(expiresAt: number) {
+export function buildSessionCookieOptions(expiresAt: number, req?: NextRequest) {
   const now = Math.floor(Date.now() / 1000)
   let maxAge = expiresAt - now
   // Token déjà validé par jose : éviter maxAge=0 (cookie immédiatement expiré)
@@ -112,7 +120,7 @@ export function buildSessionCookieOptions(expiresAt: number) {
 
   return {
     httpOnly: true as const,
-    secure: isSecureCookie(),
+    secure: isSecureRequest(req),
     sameSite: "lax" as const,
     path: "/",
     maxAge,
@@ -122,33 +130,41 @@ export function buildSessionCookieOptions(expiresAt: number) {
 export function applySessionCookie(
   response: NextResponse,
   idToken: string,
-  expiresAt: number
+  expiresAt: number,
+  req?: NextRequest
 ): NextResponse {
-  const options = buildSessionCookieOptions(expiresAt)
+  const options = buildSessionCookieOptions(expiresAt, req)
   response.cookies.set(SESSION_COOKIE_NAME, idToken, options)
-  // Nettoie l'ancien cookie __Host- s'il existe encore
-  response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  })
+  // Nettoie l'ancien cookie __Host- s'il existe encore (HTTPS only)
+  if (isSecureRequest(req)) {
+    response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    })
+  }
   return response
 }
 
-export function clearSessionCookie(response: NextResponse): NextResponse {
+export function clearSessionCookie(
+  response: NextResponse,
+  req?: NextRequest
+): NextResponse {
   const clear = {
     httpOnly: true as const,
-    secure: isSecureCookie(),
+    secure: isSecureRequest(req),
     sameSite: "lax" as const,
     path: "/",
     maxAge: 0,
   }
   response.cookies.set(SESSION_COOKIE_NAME, "", clear)
-  response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
-    ...clear,
-    secure: true,
-  })
+  if (isSecureRequest(req)) {
+    response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
+      ...clear,
+      secure: true,
+    })
+  }
   return response
 }

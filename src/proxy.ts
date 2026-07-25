@@ -18,7 +18,7 @@ function isApiPath(pathname: string): boolean {
   return pathname.startsWith("/api/")
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   // Public exact : session API (GET/POST/DELETE) doit rester accessible sans cookie

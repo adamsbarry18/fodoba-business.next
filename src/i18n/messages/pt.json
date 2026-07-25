@@ -202,6 +202,7 @@
   "loading.sessionCheck": "Verificando sua sessão…",
   "loading.storeActivation": "Ativando sua loja…",
   "loading.storeLoading": "Carregando sua loja…",
+  "loading.preparingWorkspace": "A preparar o seu espaço…",
   "table.pagination.range": "Exibindo {start} a {end} de {total}",
   "table.pagination.previous": "Anterior",
   "table.pagination.next": "Próximo",

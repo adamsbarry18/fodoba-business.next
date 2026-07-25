@@ -16,7 +16,7 @@ import {
 import { db } from "@/lib/firebase/client";
 import { Sale, SaleItem, UserProfile, Client, StockLevel, Store, Product } from "@/lib/types";
 import { getSaleItemRetailQuantity, getSaleQuantityUnit } from "@/lib/pos-utils";
-import { normalizeProduct } from "@/lib/product-utils";
+import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils";
 import {
   applySaleItemsToDecomposedStock,
   buildStockLevelPayload,
@@ -92,7 +92,7 @@ export const SaleService = {
           productId,
           normalizeStockLevel(
             snap.exists() ? (snap.data() as StockLevel) : null,
-            normalized.unitsPerPack
+            getRetailUnitsPerPack(normalized)
           )
         );
       });

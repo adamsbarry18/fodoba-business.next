@@ -25,11 +25,16 @@ function getAuthErrorCode(error: unknown): string | undefined {
  * Service gérant les interactions directes avec Firebase Authentication
  * et la synchronisation du cookie de session serveur.
  */
+/** Évite un double POST (login + onIdTokenChanged) avec le même token. */
+let lastSyncedIdToken: string | null = null
+
 export const AuthService = {
   /**
    * Pose le cookie httpOnly via POST /api/auth/session.
    */
   async createServerSession(idToken: string): Promise<void> {
+    if (lastSyncedIdToken === idToken) return
+
     const res = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,22 +45,16 @@ export const AuthService = {
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
       throw new Error(body?.message || "Impossible de créer la session serveur.");
     }
-
-    // Confirme que le navigateur a bien accepté le cookie (évite le bounce middleware)
-    const check = await fetch("/api/auth/session", {
-      method: "GET",
-      credentials: "same-origin",
-      cache: "no-store",
-    });
-    if (!check.ok) {
-      throw new Error("Impossible de créer la session serveur.");
-    }
+    lastSyncedIdToken = idToken
+    // Pas de GET de confirmation juste après : sur Safari/iOS le cookie Set-Cookie
+    // n'est pas toujours lisible dans la requête suivante immédiate (faux échec login).
   },
 
   /**
    * Efface le cookie de session (idempotent).
    */
   async clearServerSession(): Promise<void> {
+    lastSyncedIdToken = null
     try {
       await fetch("/api/auth/session", {
         method: "DELETE",

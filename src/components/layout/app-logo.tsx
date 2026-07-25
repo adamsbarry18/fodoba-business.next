@@ -23,9 +23,14 @@ const sizePixels = {
 interface AppLogoProps {
   size?: keyof typeof sizeClasses
   className?: string
+  /** LCP / above-the-fold (login, loading screen) */
+  priority?: boolean
 }
 
-export function AppLogo({ size = "sm", className }: AppLogoProps) {
+export function AppLogo({ size = "sm", className, priority }: AppLogoProps) {
+  const eager =
+    priority ?? (size === "hero" || size === "2xl" || size === "lg")
+
   return (
     <div
       className={cn(
@@ -40,6 +45,7 @@ export function AppLogo({ size = "sm", className }: AppLogoProps) {
         fill
         className="object-cover"
         sizes={sizePixels[size]}
+        priority={eager}
       />
     </div>
   )

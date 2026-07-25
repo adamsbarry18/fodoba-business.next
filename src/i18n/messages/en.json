@@ -202,6 +202,7 @@
   "loading.sessionCheck": "Verifying your session…",
   "loading.storeActivation": "Activating your store…",
   "loading.storeLoading": "Loading your store…",
+  "loading.preparingWorkspace": "Preparing your workspace…",
   "table.pagination.range": "Showing {start} to {end} of {total}",
   "table.pagination.previous": "Previous",
   "table.pagination.next": "Next",

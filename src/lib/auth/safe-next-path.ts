@@ -1,6 +1,6 @@
 /**
  * Validation du paramètre `?next=` (post-login redirect).
- * Edge-safe — utilisable depuis le middleware et le client.
+ * Edge-safe — utilisable depuis le proxy et le client.
  */
 
 export const DEFAULT_AFTER_LOGIN = "/dashboard"

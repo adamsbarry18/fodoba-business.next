@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { User, type UserCredential } from "firebase/auth";
 import { doc, getDoc, writeBatch } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase/client";
@@ -9,6 +9,10 @@ import { UserProfile } from "@/lib/types";
 import { UserService } from "@/services/user.service";
 import { extractFirstNameFromEmail } from "@/lib/user-utils";
 import { toast } from "sonner";
+import {
+  beginLogoutToastSilence,
+  installErrorToastSilence,
+} from "@/lib/toast-silence";
 
 interface AuthContextType {
   currentUser: User | null;
@@ -31,6 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    installErrorToastSilence(toast);
+  }, []);
 
   const fetchProfile = async (uid: string, user: User) => {
     if (!db) {
@@ -86,19 +94,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Le premier event null = boot (pas encore connecté) — ne pas silencer les toasts.
+    let isInitialAuthEvent = true;
+
     const unsubscribeAuth = AuthService.subscribeToAuthChanges(async (user) => {
       if (user) {
+        isInitialAuthEvent = false;
         try {
           const profile = await fetchProfile(user.uid, user);
           setCurrentUser(user);
           setUserProfile(profile);
         } catch (error: unknown) {
           toast.error(error instanceof Error ? error.message : "Erreur d'authentification");
+          beginLogoutToastSilence(toast);
           await AuthService.logout();
           setCurrentUser(null);
           setUserProfile(null);
         }
       } else {
+        if (!isInitialAuthEvent) {
+          // Déconnexion / session perdue : ignorer les erreurs des pages encore montées
+          beginLogoutToastSilence(toast);
+        }
+        isInitialAuthEvent = false;
         setCurrentUser(null);
         setUserProfile(null);
       }
@@ -128,6 +146,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (profile) setUserProfile(profile);
   };
 
+  const logout = useCallback(async () => {
+    beginLogoutToastSilence(toast);
+    await AuthService.logout();
+  }, []);
+
   const value = {
     currentUser,
     userProfile,
@@ -136,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isManager: userProfile?.role === "manager",
     isSeller: userProfile?.role === "seller",
     login: AuthService.login.bind(AuthService),
-    logout: AuthService.logout.bind(AuthService),
+    logout,
     resetPassword: AuthService.resetPassword.bind(AuthService),
     refreshProfile,
   };

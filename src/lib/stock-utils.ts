@@ -1,6 +1,11 @@
 import type { Product, SaleItem, StockLevel } from "@/lib/types"
 import type { PriceTier } from "@/lib/types"
-import { computeInitialStockTotal, decomposeStock, normalizeProduct } from "@/lib/product-utils"
+import {
+  computeInitialStockTotal,
+  decomposeStock,
+  getRetailUnitsPerPack,
+  normalizeProduct,
+} from "@/lib/product-utils"
 
 export type DecomposedStock = {
   packagingQty: number
@@ -18,10 +23,11 @@ export function normalizeStockLevel(
   if (stock?.packagingQty != null && stock?.detailQty != null) {
     const packagingQty = Math.max(0, stock.packagingQty)
     const detailQty = Math.max(0, stock.detailQty)
+    // `unitsPerPack` ici = unités détail / colis (conditionnement × qté détail)
     return {
       packagingQty,
       detailQty,
-      quantity: computeInitialStockTotal(packagingQty, ratio, detailQty),
+      quantity: packagingQty * ratio + detailQty,
     }
   }
 
@@ -51,7 +57,8 @@ export function buildStockLevelPayload(
 export function buildDecomposedStock(
   packagingQty: number,
   detailQty: number,
-  unitsPerPack: number
+  unitsPerPack: number,
+  retailQtyFactor = 1
 ): DecomposedStock {
   const packaging = Math.max(0, packagingQty)
   const detail = Math.max(0, detailQty)
@@ -59,7 +66,7 @@ export function buildDecomposedStock(
   return {
     packagingQty: packaging,
     detailQty: detail,
-    quantity: computeInitialStockTotal(packaging, ratio, detail),
+    quantity: computeInitialStockTotal(packaging, ratio, detail, retailQtyFactor),
   }
 }
 
@@ -81,7 +88,7 @@ export function getSaleItemRetailQuantity(item: SaleItem, product: Product): num
   if (qty === 0) return 0
 
   if (usesPackagingTier(product, tier)) {
-    return qty * Math.max(1, normalized.unitsPerPack)
+    return qty * getRetailUnitsPerPack(normalized)
   }
   return qty
 }
@@ -119,7 +126,7 @@ export function applySaleItemToDecomposedStock(
   item: SaleItem
 ): DecomposedStock {
   const normalized = normalizeProduct(product)
-  const ratio = Math.max(1, normalized.unitsPerPack)
+  const ratio = getRetailUnitsPerPack(normalized)
   const tier = item.priceTier ?? "retail"
   const qty = Math.max(0, Number(item.quantity) || 0)
 
@@ -141,7 +148,12 @@ export function applySaleItemToDecomposedStock(
 
   // Engros : décrémente uniquement les conditionnements complets
   if (usesPackagingTier(product, tier)) {
-    return buildDecomposedStock(stock.packagingQty - qty, stock.detailQty, ratio)
+    return buildDecomposedStock(
+      stock.packagingQty - qty,
+      stock.detailQty,
+      normalized.unitsPerPack,
+      normalized.retailQtyFactor
+    )
   }
 
   // Détail : consomme le vrac, puis ouvre des conditionnements si besoin
@@ -167,13 +179,22 @@ export function applyPurchaseQuantityToDecomposedStock(
   purchaseQty: number
 ): DecomposedStock {
   const normalized = normalizeProduct(product)
-  const ratio = Math.max(1, normalized.unitsPerPack)
   const qty = Math.max(0, purchaseQty)
 
-  if (ratio > 1 && normalized.packagingUnit) {
-    return buildDecomposedStock(stock.packagingQty + qty, stock.detailQty, ratio)
+  if (normalized.unitsPerPack > 1 && normalized.packagingUnit) {
+    return buildDecomposedStock(
+      stock.packagingQty + qty,
+      stock.detailQty,
+      normalized.unitsPerPack,
+      normalized.retailQtyFactor
+    )
   }
-  return buildDecomposedStock(stock.packagingQty, stock.detailQty + qty, ratio)
+  return buildDecomposedStock(
+    stock.packagingQty,
+    stock.detailQty + qty,
+    normalized.unitsPerPack,
+    normalized.retailQtyFactor
+  )
 }
 
 /**

@@ -25,7 +25,7 @@ import {
   buildStockLevelPayload,
   normalizeStockLevel,
 } from "@/lib/stock-utils";
-import { normalizeProduct } from "@/lib/product-utils";
+import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils";
 
 const COLLECTION_NAME = "purchases";
 
@@ -173,7 +173,7 @@ export const PurchaseService = {
 
         const previous = normalizeStockLevel(
           stockSnap.exists() ? (stockSnap.data() as StockLevel) : null,
-          normalized.unitsPerPack
+          getRetailUnitsPerPack(normalized)
         );
         const next = applyPurchaseQuantityToDecomposedStock(previous, product, item.quantity);
 

@@ -39,7 +39,7 @@ import {
   formatDecomposedStockLabel,
   type DecomposedStock,
 } from "@/lib/stock-utils"
-import { normalizeProduct } from "@/lib/product-utils"
+import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils"
 import { ProductExpirationDisplay } from "@/components/inventory/product-expiration-display"
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper"
 import { cn } from "@/lib/utils"
@@ -79,7 +79,7 @@ export default function ProductDetailsPage() {
             levels[s.id] = await ProductService.getStockRecord(
               prod.id,
               s.id,
-              normalizeProduct(prod).unitsPerPack
+              getRetailUnitsPerPack(normalizeProduct(prod))
             )
           })
         )
@@ -551,7 +551,8 @@ export default function ProductDetailsPage() {
                 const draft = buildDecomposedStock(
                   hasPackaging ? draftPackaging : 0,
                   hasPackaging ? draftDetail : draftDetail,
-                  hasPackaging ? normalized.unitsPerPack : 1
+                  hasPackaging ? normalized.unitsPerPack : 1,
+                  hasPackaging ? normalized.retailQtyFactor : 1
                 )
                 const hasChanges = hasPackaging
                   ? draftPackaging !== record.packagingQty ||

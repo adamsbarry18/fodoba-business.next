@@ -63,6 +63,7 @@ export function ProductFormFields({
   const initialPackaging = showStockFields ? form.watch("initialStockPackaging") : undefined
   const detailStock = showStockFields ? form.watch("detailStock") : undefined
   const unitsPerPack = form.watch("unitsPerPack")
+  const retailQtyFactor = form.watch("retailQtyFactor")
   const imageUrl = form.watch("imageUrl")
   const packagingUnit = form.watch("packagingUnit")
   const retailUnit = form.watch("unit")
@@ -72,9 +73,10 @@ export function ProductFormFields({
     return computeInitialStockTotal(
       Number(initialPackaging) || 0,
       unitsPerPack ?? 1,
-      detailStock ?? 0
+      detailStock ?? 0,
+      retailQtyFactor ?? 1
     )
-  }, [showStockFields, initialPackaging, detailStock, unitsPerPack])
+  }, [showStockFields, initialPackaging, detailStock, unitsPerPack, retailQtyFactor])
 
   const previewSrc = imagePreview || imageUrl || null
 

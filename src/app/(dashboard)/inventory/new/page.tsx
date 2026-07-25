@@ -18,6 +18,7 @@ import { ENTITY_ROUTES, readReturnContext } from "@/lib/navigation/return-to"
 import { applyReturnSelection } from "@/hooks/use-return-selection"
 import { generateProductSku } from "@/lib/product-utils"
 import { useStore } from "@/lib/contexts/StoreContext"
+import { useAuth } from "@/lib/contexts/AuthContext"
 import { ProductFormFields } from "@/components/inventory/product-form-fields"
 import { useT } from "@/i18n/context"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -25,6 +26,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 export default function NewProductPage() {
   const router = useRouter()
   const { activeStore } = useStore()
+  const { userProfile, loading: authLoading } = useAuth()
   const { can } = usePermissions()
   const canManageCatalog = can("manage:catalog")
   const { redirectAfterCreate, cancelHref } = useCreateReturn(
@@ -62,11 +64,13 @@ export default function NewProductPage() {
   })
 
   useEffect(() => {
+    // Profil null pendant logout ≠ refus de droit
+    if (authLoading || !userProfile) return
     if (!canManageCatalog) {
       toast.error(t("common.accessDenied"))
       router.replace("/inventory")
     }
-  }, [canManageCatalog, router, t])
+  }, [authLoading, userProfile, canManageCatalog, router, t])
 
   useEffect(() => {
     let cancelled = false

@@ -16,7 +16,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { applyReturnSelection } from "@/hooks/use-return-selection"
 import { ENTITY_ROUTES } from "@/lib/navigation/return-to"
-import { normalizeProduct } from "@/lib/product-utils"
+import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils"
 import type { DecomposedStock } from "@/lib/stock-utils"
 import { ProductFormFields } from "@/components/inventory/product-form-fields"
 import { useStore } from "@/lib/contexts/StoreContext"
@@ -52,6 +52,8 @@ export default function EditProductPage() {
   const editReturnPath = `/inventory/${params.id}/edit`
 
   useEffect(() => {
+    let cancelled = false
+
     const init = async () => {
       try {
         const productId = params.id as string
@@ -59,6 +61,8 @@ export default function EditProductPage() {
           ProductService.getProduct(productId),
           CategoryService.listCategories(),
         ])
+        if (cancelled) return
+
         if (prod) {
           const normalized = normalizeProduct(prod)
           let initialStockPackaging = 0
@@ -68,8 +72,9 @@ export default function EditProductPage() {
             const stockRecord = await ProductService.getStockRecord(
               productId,
               activeStore.id,
-              normalized.unitsPerPack
+              getRetailUnitsPerPack(normalized)
             )
+            if (cancelled) return
             initialStockPackaging = stockRecord.packagingQty
             detailStock = stockRecord.detailQty
             setOriginalStock(stockRecord)
@@ -98,13 +103,17 @@ export default function EditProductPage() {
           }
         )
       } catch {
-        toast.error(t("common.errorLoading"))
+        if (!cancelled) toast.error(t("common.errorLoading"))
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    init()
-  }, [params.id, form, router, t, activeStore])
+    void init()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeStore?.id suffit (évite rechargements)
+  }, [params.id, form, router, t, activeStore?.id])
 
   const onSubmit = async (values: ProductEditFormValues) => {
     try {

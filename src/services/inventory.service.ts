@@ -24,7 +24,7 @@ import {
   applyRetailQuantityIn,
   applyRetailQuantityOut,
 } from "@/lib/stock-utils";
-import { normalizeProduct } from "@/lib/product-utils";
+import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils";
 
 const MOVEMENTS_COLLECTION = "inventory_movements";
 const STOCKS_COLLECTION = "stocks";
@@ -154,11 +154,17 @@ export const InventoryService = {
       const product = productSnap.data() as Product;
       const store = storeSnap.data() as Store;
       const normalized = normalizeProduct(product);
+      const ratio = getRetailUnitsPerPack(normalized);
       const previous = normalizeStockLevel(
         stockSnap.exists() ? (stockSnap.data() as StockLevel) : null,
-        normalized.unitsPerPack
+        ratio
       );
-      const next = buildDecomposedStock(packagingQty, detailQty, normalized.unitsPerPack);
+      const next = buildDecomposedStock(
+        packagingQty,
+        detailQty,
+        normalized.unitsPerPack,
+        normalized.retailQtyFactor
+      );
       const delta = next.quantity - previous.quantity;
 
       transaction.set(
@@ -255,7 +261,7 @@ export const InventoryService = {
       const product = productSnap.data() as Product
       const store = storeSnap.data() as Store
       const normalized = normalizeProduct(product)
-      const ratio = Math.max(1, normalized.unitsPerPack)
+      const ratio = getRetailUnitsPerPack(normalized)
       const previous = normalizeStockLevel(
         stockSnap.exists() ? (stockSnap.data() as StockLevel) : null,
         ratio
@@ -271,7 +277,12 @@ export const InventoryService = {
             `Stock conditionnement insuffisant. Disponible : ${previous.packagingQty} ${unit}`
           )
         }
-        next = buildDecomposedStock(newPackaging, next.detailQty, ratio)
+        next = buildDecomposedStock(
+          newPackaging,
+          next.detailQty,
+          normalized.unitsPerPack,
+          normalized.retailQtyFactor
+        )
       }
 
       if (detailDelta !== 0) {
@@ -384,17 +395,18 @@ export const InventoryService = {
       const toStore = toStoreSnap.data() as Store;
       const normalized = normalizeProduct(product);
 
+      const ratio = getRetailUnitsPerPack(normalized);
       const previousFrom = normalizeStockLevel(
         fromStockSnap.exists() ? (fromStockSnap.data() as StockLevel) : null,
-        normalized.unitsPerPack
+        ratio
       );
       const previousTo = normalizeStockLevel(
         toStockSnap.exists() ? (toStockSnap.data() as StockLevel) : null,
-        normalized.unitsPerPack
+        ratio
       );
 
-      const nextFrom = applyRetailQuantityOut(previousFrom, quantity, normalized.unitsPerPack);
-      const nextTo = applyRetailQuantityIn(previousTo, quantity, normalized.unitsPerPack);
+      const nextFrom = applyRetailQuantityOut(previousFrom, quantity, ratio);
+      const nextTo = applyRetailQuantityIn(previousTo, quantity, ratio);
 
       transaction.set(
         fromStockRef,

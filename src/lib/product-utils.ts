@@ -53,16 +53,33 @@ export function generateProductSku(name: string): string {
   return `${prefix}-${timePart}${randomPart}`
 }
 
-/** Stock total en unités détail : (gros × conditionnement) + détail loose */
+/**
+ * Unités détail par colis = conditionnement × qté détail.
+ * Ex. 10 canettes/casier × facteur 4 → 40 unités détail par casier.
+ */
+export function getRetailUnitsPerPack(
+  product: Pick<Product, "unitsPerPack" | "retailQtyFactor"> | {
+    unitsPerPack?: number
+    retailQtyFactor?: number
+  }
+): number {
+  return Math.max(1, product.unitsPerPack ?? 1) * Math.max(1, product.retailQtyFactor ?? 1)
+}
+
+/**
+ * Stock total calculé :
+ * conditionnement × qté_détail × stock_initial + stock_détail
+ */
 export function computeInitialStockTotal(
   initialPackaging: number,
   unitsPerPack: number,
-  detailStock = 0
+  detailStock = 0,
+  retailQtyFactor = 1
 ): number {
   const packs = Math.max(0, initialPackaging)
-  const ratio = Math.max(1, unitsPerPack)
+  const packUnits = Math.max(1, unitsPerPack) * Math.max(1, retailQtyFactor)
   const loose = Math.max(0, detailStock)
-  return packs * ratio + loose
+  return packs * packUnits + loose
 }
 
 export function decomposeStock(totalRetail: number, unitsPerPack: number) {

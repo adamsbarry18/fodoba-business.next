@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -22,11 +22,41 @@ import { PasswordField } from "@/components/auth/password-field"
 import { LoginSchema, type LoginFormValues } from "@/lib/auth-utils"
 import { useT } from "@/i18n/context"
 import { resolveSafeNextPath } from "@/lib/auth/safe-next-path"
+import { LoadingScreen } from "@/components/ui/loading-screen"
+
+function getNextPath() {
+  return resolveSafeNextPath(
+    new URLSearchParams(window.location.search).get("next")
+  )
+}
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const { login } = useAuth()
   const t = useT()
+
+  // Session déjà valide (bookmark / retour arrière) — une seule vérif au montage
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/session", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        })
+        if (cancelled || !res.ok) return
+        setRedirecting(true)
+        window.location.replace(getNextPath())
+      } catch {
+        // rester sur le formulaire
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(LoginSchema),
@@ -40,11 +70,11 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(values.email.trim(), values.password)
-      // Navigation pleine page : le cookie httpOnly est bien envoyé au middleware
-      const next = resolveSafeNextPath(
-        new URLSearchParams(window.location.search).get("next")
-      )
-      window.location.assign(next)
+      // Un seul écran de chargement pendant la navigation pleine page
+      setRedirecting(true)
+      // Laisse le navigateur committer le Set-Cookie (Safari/iOS) avant la nav
+      await new Promise((r) => setTimeout(r, 100))
+      window.location.assign(getNextPath())
     } catch (error: unknown) {
       const rawMessage = error instanceof Error ? error.message : "auth.error.generic"
       const displayMessage = t.has(rawMessage)
@@ -52,7 +82,12 @@ export default function LoginPage() {
         : rawMessage || t("auth.loginError")
       toast.error(displayMessage)
       setLoading(false)
+      setRedirecting(false)
     }
+  }
+
+  if (redirecting) {
+    return <LoadingScreen message={t("loading.preparingWorkspace")} />
   }
 
   return (

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       { uid: session.uid, email: session.email },
       { status: 200 }
     )
-    return applySessionCookie(response, idToken, session.exp)
+    return applySessionCookie(response, idToken, session.exp, req)
   } catch (error: unknown) {
     console.error("Session create error:", error instanceof Error ? error.message : error)
     return NextResponse.json({ message: "Token invalide ou expiré" }, { status: 401 })
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   })
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   const response = new NextResponse(null, { status: 204 })
-  return clearSessionCookie(response)
+  return clearSessionCookie(response, req)
 }

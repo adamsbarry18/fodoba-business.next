@@ -3,67 +3,38 @@
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { LoadingScreen } from "@/components/ui/loading-screen"
-import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import { Suspense, useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { useEffect } from "react"
 import { useT } from "@/i18n/context"
-import { resolveSafeNextPath } from "@/lib/auth/safe-next-path"
 
 const PUBLIC_PATHS = ["/login", "/forgot-password"]
 
-function AuthLayoutInner({ children }: { children: React.ReactNode }) {
+export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
   const { currentUser, loading: authLoading } = useAuth()
   const { loading: storeLoading } = useStore()
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const t = useT()
 
   const isPublicPath = PUBLIC_PATHS.includes(pathname)
   const isAuthenticated = Boolean(currentUser)
-  const waitingForStore = isAuthenticated && !isPublicPath && storeLoading
+  // Une seule phase de boot : auth puis boutiques (même écran, même message)
+  const bootstrapping =
+    authLoading || (isAuthenticated && !isPublicPath && storeLoading)
 
   useEffect(() => {
-    if (authLoading || waitingForStore) return
+    if (authLoading) return
 
     if (!currentUser && !isPublicPath) {
-      router.push("/login")
-      return
+      router.replace("/login")
     }
+    // Pas de redirect /login → app ici : la page login gère la navigation
+    // (évite double window.location après submit + course cookie Safari).
+  }, [currentUser, authLoading, router, isPublicPath])
 
-    if (currentUser && pathname === "/login") {
-      // Hard navigation : évite le soft-nav Next qui bounce sur le middleware sans cookie
-      const next = resolveSafeNextPath(searchParams.get("next"))
-      window.location.replace(next)
-    }
-  }, [
-    currentUser,
-    authLoading,
-    waitingForStore,
-    pathname,
-    router,
-    isPublicPath,
-    searchParams,
-  ])
-
-  if (authLoading || waitingForStore) {
-    return (
-      <LoadingScreen
-        message={
-          authLoading
-            ? t("loading.sessionCheck")
-            : t("loading.storeActivation")
-        }
-      />
-    )
+  if (bootstrapping) {
+    return <LoadingScreen message={t("loading.preparingWorkspace")} />
   }
 
   return <>{children}</>
-}
-
-export function AuthLayoutWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<LoadingScreen />}>
-      <AuthLayoutInner>{children}</AuthLayoutInner>
-    </Suspense>
-  )
 }

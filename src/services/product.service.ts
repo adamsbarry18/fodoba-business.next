@@ -27,6 +27,7 @@ import {
   applyRetailQuantityOut,
   type DecomposedStock,
 } from "@/lib/stock-utils";
+import { getRetailUnitsPerPack } from "@/lib/product-utils";
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper";
 
 const COLLECTION_NAME = "products";
@@ -103,7 +104,8 @@ export const ProductService = {
     const decomposed = buildDecomposedStock(
       options.initialStockPackaging ?? 0,
       options.detailStock ?? 0,
-      data.unitsPerPack ?? 1
+      data.unitsPerPack ?? 1,
+      data.retailQtyFactor ?? 1
     );
     const stockId = `${options.storeId}_${productRef.id}`;
     const stockRef = doc(db, STOCKS_COLLECTION, stockId);
@@ -322,13 +324,21 @@ export const ProductService = {
   },
 
   async getStockRecordsForProducts(
-    products: Array<{ id: string; unitsPerPack?: number }>,
+    products: Array<{
+      id: string
+      unitsPerPack?: number
+      retailQtyFactor?: number
+    }>,
     storeId: string
   ): Promise<Record<string, DecomposedStock>> {
     const results: Record<string, DecomposedStock> = {};
     await Promise.all(
       products.map(async (p) => {
-        results[p.id] = await this.getStockRecord(p.id, storeId, p.unitsPerPack ?? 1);
+        results[p.id] = await this.getStockRecord(
+          p.id,
+          storeId,
+          getRetailUnitsPerPack(p)
+        );
       })
     );
     return results;
@@ -347,9 +357,15 @@ export const ProductService = {
     storeId: string,
     packagingQty: number,
     detailQty: number,
-    unitsPerPack = 1
+    unitsPerPack = 1,
+    retailQtyFactor = 1
   ) {
-    const decomposed = buildDecomposedStock(packagingQty, detailQty, unitsPerPack);
+    const decomposed = buildDecomposedStock(
+      packagingQty,
+      detailQty,
+      unitsPerPack,
+      retailQtyFactor
+    );
     const stockId = `${storeId}_${productId}`;
     const docRef = doc(db, STOCKS_COLLECTION, stockId);
     await setDoc(docRef, {
@@ -374,7 +390,7 @@ export const ProductService = {
     if (delta === 0) return;
 
     const product = await this.getProduct(productId);
-    const ratio = product?.unitsPerPack ?? 1;
+    const ratio = product ? getRetailUnitsPerPack(product) : 1;
     const previous = await this.getStockRecord(productId, storeId, ratio);
     const next =
       delta > 0
