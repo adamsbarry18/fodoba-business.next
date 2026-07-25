@@ -138,15 +138,12 @@ export const UserService = {
     await this.logAudit(active ? "ACTIVATE_USER" : "SUSPEND_USER", `Changement de statut pour ${uid}`, uid);
   },
 
-  async logAudit(action: string, details: string, targetId?: string) {
+  async logAudit(action: string, details: string, targetId?: string, performedByNameOverride?: string) {
     const currentUser = auth?.currentUser;
-    let performedByName = "Système";
+    let performedByName = performedByNameOverride || "Système";
 
-    if (currentUser?.uid) {
-      const profile = await this.getUser(currentUser.uid);
-      performedByName = profile
-        ? `${profile.firstName} ${profile.lastName}`
-        : currentUser.email || currentUser.uid;
+    if (!performedByNameOverride && currentUser?.uid) {
+      performedByName = currentUser.displayName || currentUser.email || currentUser.uid;
     }
 
     await addDoc(collection(db, AUDIT_COLLECTION), stripUndefined({

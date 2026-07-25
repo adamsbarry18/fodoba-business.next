@@ -179,10 +179,14 @@ export const ProductService = {
   },
 
   /**
-   * Catalogue complet (tri nom). Pour listes inventaire avec filtres client.
+   * Catalogue des produits (tri nom). Limite de sécurité maxLimit (500 par défaut).
    */
-  async listAllProducts(): Promise<Product[]> {
-    const q = query(collection(db, COLLECTION_NAME), orderBy("name", "asc"));
+  async listAllProducts(maxLimit = 500): Promise<Product[]> {
+    const q = query(
+      collection(db, COLLECTION_NAME), 
+      orderBy("name", "asc"),
+      limit(maxLimit)
+    );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
   },

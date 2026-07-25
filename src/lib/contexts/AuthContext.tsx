@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, type UserCredential } from "firebase/auth";
-import { doc, getDoc, collection, getDocs, query, limit, writeBatch } from "firebase/firestore";
+import { doc, getDoc, writeBatch } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase/client";
 import { AuthService } from "@/services/auth.service";
 import { UserProfile } from "@/lib/types";
@@ -42,9 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!userDoc.exists()) {
       // Bootstrap : premier compte Auth → profil Admin (prénom dérivé de l'email)
-      const usersSnap = await getDocs(query(collection(db, "users"), limit(1)));
+      const bootstrapDocRef = doc(db, "settings", BOOTSTRAP_SETTINGS_ID);
+      const bootstrapSnap = await getDoc(bootstrapDocRef);
 
-      if (usersSnap.empty) {
+      if (!bootstrapSnap.exists()) {
         const email = user.email || "";
         const firstName = extractFirstNameFromEmail(email);
         const initialProfile: UserProfile = {
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         const batch = writeBatch(db);
         batch.set(userDocRef, initialProfile);
-        batch.set(doc(db, "settings", BOOTSTRAP_SETTINGS_ID), {
+        batch.set(bootstrapDocRef, {
           completed: true,
           adminUid: uid,
           createdAt: new Date().toISOString(),

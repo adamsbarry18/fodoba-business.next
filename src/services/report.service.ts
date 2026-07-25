@@ -3,7 +3,8 @@ import {
   collection, 
   getDocs, 
   query, 
-  where,  
+  where,
+  limit,  
   Timestamp
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -23,13 +24,13 @@ export const ReportService = {
       where("timestamp", "<=", Timestamp.fromDate(params.endDate))
     ];
 
+    if (params.storeId && params.storeId !== "all") {
+      constraints.push(where("storeId", "==", params.storeId));
+    }
+
     const q = query(collection(db, "sales"), ...constraints);
     const snap = await getDocs(q);
-    let sales = snap.docs.map(doc => doc.data() as Sale);
-
-    if (params.storeId && params.storeId !== "all") {
-      sales = sales.filter(s => s.storeId === params.storeId);
-    }
+    const sales = snap.docs.map(doc => doc.data() as Sale);
 
     sales.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
 
@@ -47,9 +48,13 @@ export const ReportService = {
    * Analyse complète des stocks et valorisation (P3 État stock)
    */
   async getInventoryReport(storeId?: string) {
+    const stocksQuery = storeId && storeId !== "all"
+      ? query(collection(db, "stocks"), where("storeId", "==", storeId))
+      : collection(db, "stocks");
+
     const [productsSnap, stocksSnap] = await Promise.all([
-      getDocs(collection(db, "products")),
-      getDocs(collection(db, "stocks"))
+      getDocs(query(collection(db, "products"), where("active", "==", true))),
+      getDocs(stocksQuery)
     ]);
 
     const products = productsSnap.docs.map(doc => doc.data() as Product);
@@ -87,9 +92,13 @@ export const ReportService = {
    * Top Produits les plus vendus (P3 Top produits)
    */
   async getTopProducts(storeId?: string, limitCount = 10) {
-    const q = storeId && storeId !== 'all' 
-      ? query(collection(db, "sales"), where("storeId", "==", storeId))
-      : query(collection(db, "sales"));
+    const constraints = [];
+    if (storeId && storeId !== "all") {
+      constraints.push(where("storeId", "==", storeId));
+    }
+    constraints.push(limit(300));
+
+    const q = query(collection(db, "sales"), ...constraints);
     
     const snap = await getDocs(q);
     const productSales: Record<string, { name: string, qty: number, revenue: number }> = {};
@@ -116,8 +125,8 @@ export const ReportService = {
    */
   async getFinanceConsolidation() {
     const [clientsSnap, suppliersSnap] = await Promise.all([
-      getDocs(collection(db, "clients")),
-      getDocs(collection(db, "suppliers"))
+      getDocs(query(collection(db, "clients"), where("currentDebt", ">", 0))),
+      getDocs(query(collection(db, "suppliers"), where("currentDebt", ">", 0)))
     ]);
 
     const clients = clientsSnap.docs.map(doc => doc.data() as Client);
@@ -127,8 +136,8 @@ export const ReportService = {
     const totalSupplierDebt = suppliers.reduce((sum, s) => sum + (s.currentDebt || 0), 0);
 
     return {
-      clients: clients.filter(c => c.currentDebt > 0).sort((a, b) => b.currentDebt - a.currentDebt),
-      suppliers: suppliers.filter(s => s.currentDebt > 0).sort((a, b) => b.currentDebt - a.currentDebt),
+      clients: clients.sort((a, b) => b.currentDebt - a.currentDebt),
+      suppliers: suppliers.sort((a, b) => b.currentDebt - a.currentDebt),
       summary: {
         totalClientDebt,
         totalSupplierDebt,

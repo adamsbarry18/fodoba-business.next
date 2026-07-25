@@ -14,12 +14,19 @@ service cloud.firestore {
     }
     
     function isActive() {
-      let profile = getProfile();
-      return profile != null && profile.active == true;
+      return isSignedIn() && (
+        request.auth.token.keys().hasAll(['active'])
+          ? request.auth.token.active == true
+          : (getProfile() != null && getProfile().active == true)
+      );
     }
     
     function hasRole(role) {
-      return isSignedIn() && getProfile().role == role;
+      return isSignedIn() && (
+        request.auth.token.keys().hasAll(['role'])
+          ? request.auth.token.role == role
+          : (getProfile() != null && getProfile().role == role)
+      );
     }
     
     function isAdmin() {
@@ -31,8 +38,11 @@ service cloud.firestore {
     }
 
     function isStoreAuthorized(storeId) {
-      let profile = getProfile();
-      return isAdmin() || (profile.storeIds != null && storeId in profile.storeIds);
+      return isAdmin() || (
+        request.auth.token.keys().hasAll(['storeIds'])
+          ? (request.auth.token.storeIds != null && storeId in request.auth.token.storeIds)
+          : (getProfile() != null && getProfile().storeIds != null && storeId in getProfile().storeIds)
+      );
     }
 
     // --- RÈGLES PAR COLLECTION (Alignées CDC v1.0) ---

@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useCurrency } from "@/hooks/use-currency"
+import { fetchWithCache } from "@/lib/cache/client-cache"
 import { SaleService } from "@/services/sale.service"
 import { ClientService } from "@/services/client.service"
 import { SupplierService } from "@/services/supplier.service"
@@ -102,11 +103,11 @@ export default function DashboardPage() {
     setLoading(true)
     try {
       const [clientsRes, suppliersRes, salesRes, sessionRes, productsRes] = await Promise.all([
-        ClientService.listClients(),
-        SupplierService.listSuppliers(),
+        fetchWithCache("clients:list", () => ClientService.listClients(), 120_000),
+        fetchWithCache("suppliers:list", () => SupplierService.listSuppliers(), 120_000),
         SaleService.listRecentSales(storeId, 200),
         CashService.getActiveSession(storeId),
-        ProductService.listProducts({ active: true }, 100),
+        fetchWithCache(`products:active:${storeId}`, () => ProductService.listProducts({ active: true }, 100), 60_000),
       ])
 
       setClients(clientsRes)

@@ -1,7 +1,13 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  type Firestore 
+} from "firebase/firestore";
 import { firebaseConfig } from "./config";
 
 // Vérifier si la configuration est valide (apiKey présente) pour éviter le crash immédiat
@@ -15,6 +21,25 @@ const app = isConfigValid
 // On exporte les instances ou null si la config est invalide
 // Note: Les services devront vérifier la présence de ces instances avant utilisation
 const auth: Auth | null = app ? getAuth(app) : null;
-const db: Firestore = app ? getFirestore(app) : (null as unknown as Firestore);
+
+let dbInstance: Firestore = null as unknown as Firestore;
+if (app) {
+  if (getApps().length > 1) {
+    dbInstance = getFirestore(app);
+  } else {
+    try {
+      dbInstance = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      });
+    } catch {
+      dbInstance = getFirestore(app);
+    }
+  }
+}
+
+const db: Firestore = dbInstance;
 
 export { app, auth, db };
+

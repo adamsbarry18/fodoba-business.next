@@ -144,12 +144,11 @@ export const CashService = {
   async getMovements(sessionId: string, storeId: string) {
     const q = query(
       collection(db, MOVEMENTS_COLLECTION),
-      where("storeId", "==", storeId)
+      where("storeId", "==", storeId),
+      where("sessionId", "==", sessionId)
     );
     const snap = await getDocs(q);
-    const movements = snap.docs
-      .map((doc) => doc.data() as CashMovement)
-      .filter((movement) => movement.sessionId === sessionId);
+    const movements = snap.docs.map((doc) => doc.data() as CashMovement);
     movements.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
     return movements;
   }
