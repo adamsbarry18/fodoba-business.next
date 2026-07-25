@@ -21,6 +21,7 @@ import { AuthPageShell } from "@/components/auth/auth-page-shell"
 import { PasswordField } from "@/components/auth/password-field"
 import { LoginSchema, type LoginFormValues } from "@/lib/auth-utils"
 import { useT } from "@/i18n/context"
+import { resolveSafeNextPath } from "@/lib/auth/safe-next-path"
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
@@ -39,11 +40,17 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(values.email.trim(), values.password)
+      // Navigation pleine page : le cookie httpOnly est bien envoyé au middleware
+      const next = resolveSafeNextPath(
+        new URLSearchParams(window.location.search).get("next")
+      )
+      window.location.assign(next)
     } catch (error: unknown) {
       const rawMessage = error instanceof Error ? error.message : "auth.error.generic"
-      const displayMessage = t.has(rawMessage) ? t(rawMessage) : t("auth.loginError")
+      const displayMessage = t.has(rawMessage)
+        ? t(rawMessage)
+        : rawMessage || t("auth.loginError")
       toast.error(displayMessage)
-    } finally {
       setLoading(false)
     }
   }

@@ -31,7 +31,9 @@ function AuthLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     if (currentUser && pathname === "/login") {
-      router.push(resolveSafeNextPath(searchParams.get("next")))
+      // Hard navigation : évite le soft-nav Next qui bounce sur le middleware sans cookie
+      const next = resolveSafeNextPath(searchParams.get("next"))
+      window.location.replace(next)
     }
   }, [
     currentUser,

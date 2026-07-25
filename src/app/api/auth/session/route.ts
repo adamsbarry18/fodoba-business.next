@@ -3,6 +3,7 @@ import { z } from "zod"
 import {
   applySessionCookie,
   clearSessionCookie,
+  getSessionFromRequest,
   verifyFirebaseIdToken,
 } from "@/lib/auth/session"
 
@@ -30,6 +31,19 @@ export async function POST(req: NextRequest) {
     console.error("Session create error:", error instanceof Error ? error.message : error)
     return NextResponse.json({ message: "Token invalide ou expiré" }, { status: 401 })
   }
+}
+
+/** Vérifie si le cookie de session courant est valide. */
+export async function GET(req: NextRequest) {
+  const session = await getSessionFromRequest(req)
+  if (!session) {
+    return NextResponse.json({ authenticated: false }, { status: 401 })
+  }
+  return NextResponse.json({
+    authenticated: true,
+    uid: session.uid,
+    email: session.email,
+  })
 }
 
 export async function DELETE() {

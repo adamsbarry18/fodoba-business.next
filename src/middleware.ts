@@ -21,6 +21,7 @@ function isApiPath(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
+  // Public exact : session API (GET/POST/DELETE) doit rester accessible sans cookie
   if (isPublicPath(pathname)) {
     return NextResponse.next()
   }

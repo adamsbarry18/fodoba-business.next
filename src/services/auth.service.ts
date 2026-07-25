@@ -33,9 +33,21 @@ export const AuthService = {
     const res = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ idToken }),
     });
     if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(body?.message || "Impossible de créer la session serveur.");
+    }
+
+    // Confirme que le navigateur a bien accepté le cookie (évite le bounce middleware)
+    const check = await fetch("/api/auth/session", {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!check.ok) {
       throw new Error("Impossible de créer la session serveur.");
     }
   },
@@ -45,7 +57,10 @@ export const AuthService = {
    */
   async clearServerSession(): Promise<void> {
     try {
-      await fetch("/api/auth/session", { method: "DELETE" });
+      await fetch("/api/auth/session", {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
     } catch {
       // best-effort : la déconnexion client doit continuer
     }

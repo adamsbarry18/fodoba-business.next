@@ -1,16 +1,30 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose"
 import { NextRequest, NextResponse } from "next/server"
 
-/** Cookie name: `__Host-` prefix requires Secure + Path=/ + no Domain (prod HTTPS). */
-export const SESSION_COOKIE_NAME =
-  process.env.NODE_ENV === "production" ? "__Host-fodoba-session" : "fodoba-session"
+/**
+ * Nom du cookie de session.
+ * Pas de préfixe `__Host-` : certains reverse-proxies / runtimes Next ajoutent
+ * des attributs incompatibles et le navigateur rejette le cookie silencieusement.
+ */
+export const SESSION_COOKIE_NAME = "fodoba-session"
+/** Ancien nom (migration) — toujours lu puis effacé. */
+export const LEGACY_SESSION_COOKIE_NAME = "__Host-fodoba-session"
 
 const FIREBASE_JWKS_URL =
   "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
 
 const MAX_SESSION_SECONDS = 60 * 60 // 1h — Firebase ID tokens
+const MIN_SESSION_SECONDS = 60
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null
+
+function isSecureCookie(): boolean {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL === "1"
+  )
+}
 
 function getProjectId(): string {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
@@ -58,12 +72,17 @@ export async function verifyFirebaseIdToken(token: string): Promise<SessionPaylo
     issuer: `https://securetoken.google.com/${projectId}`,
     audience: projectId,
     algorithms: ["RS256"],
+    clockTolerance: 60,
   })
   return toSessionPayload(payload)
 }
 
 export function getSessionTokenFromRequest(req: NextRequest): string | null {
-  return req.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
+  return (
+    req.cookies.get(SESSION_COOKIE_NAME)?.value ??
+    req.cookies.get(LEGACY_SESSION_COOKIE_NAME)?.value ??
+    null
+  )
 }
 
 export async function getSessionFromRequest(
@@ -73,21 +92,27 @@ export async function getSessionFromRequest(
   if (!token) return null
   try {
     return await verifyFirebaseIdToken(token)
-  } catch {
+  } catch (error) {
+    console.error(
+      "[session] JWT verify failed:",
+      error instanceof Error ? error.message : error
+    )
     return null
   }
 }
 
 export function buildSessionCookieOptions(expiresAt: number) {
-  const maxAge = Math.max(
-    0,
-    Math.min(MAX_SESSION_SECONDS, expiresAt - Math.floor(Date.now() / 1000))
-  )
-  const isProd = process.env.NODE_ENV === "production"
+  const now = Math.floor(Date.now() / 1000)
+  let maxAge = expiresAt - now
+  // Token déjà validé par jose : éviter maxAge=0 (cookie immédiatement expiré)
+  if (maxAge < MIN_SESSION_SECONDS) {
+    maxAge = MAX_SESSION_SECONDS
+  }
+  maxAge = Math.min(MAX_SESSION_SECONDS, maxAge)
 
   return {
     httpOnly: true as const,
-    secure: isProd,
+    secure: isSecureCookie(),
     sameSite: "lax" as const,
     path: "/",
     maxAge,
@@ -99,17 +124,31 @@ export function applySessionCookie(
   idToken: string,
   expiresAt: number
 ): NextResponse {
-  response.cookies.set(SESSION_COOKIE_NAME, idToken, buildSessionCookieOptions(expiresAt))
+  const options = buildSessionCookieOptions(expiresAt)
+  response.cookies.set(SESSION_COOKIE_NAME, idToken, options)
+  // Nettoie l'ancien cookie __Host- s'il existe encore
+  response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  })
   return response
 }
 
 export function clearSessionCookie(response: NextResponse): NextResponse {
-  response.cookies.set(SESSION_COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+  const clear = {
+    httpOnly: true as const,
+    secure: isSecureCookie(),
+    sameSite: "lax" as const,
     path: "/",
     maxAge: 0,
+  }
+  response.cookies.set(SESSION_COOKIE_NAME, "", clear)
+  response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
+    ...clear,
+    secure: true,
   })
   return response
 }
