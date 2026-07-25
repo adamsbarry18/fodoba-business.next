@@ -107,6 +107,7 @@ export default function LoginPage() {
                   </FormLabel>
                   <Link
                     href="/forgot-password"
+                    prefetch={false}
                     className="text-xs font-semibold text-primary transition-colors hover:text-primary/80"
                   >
                     {t("auth.forgotPassword")}

@@ -68,7 +68,12 @@ export function SidebarNavMenuItem({ item, isActive, onNavigate }: SidebarNavMen
         tooltip={t(item.title)}
         className="h-9 gap-2.5 rounded-lg px-2.5"
       >
-        <Link href={item.url} onClick={onNavigate} aria-current={isActive ? "page" : undefined}>
+        <Link
+          href={item.url}
+          prefetch={false}
+          onClick={onNavigate}
+          aria-current={isActive ? "page" : undefined}
+        >
           {isActive ? (
             <span
               className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
@@ -95,7 +100,12 @@ export function AppDropdownNavItem({ item, isActive, onNavigate }: AppDropdownNa
 
   return (
     <DropdownMenuItem asChild className={cn(appDropdownItemClass, isActive && "bg-accent/60 font-medium")}>
-      <Link href={item.url} className="flex cursor-pointer items-center gap-2.5" onClick={onNavigate}>
+      <Link
+        href={item.url}
+        prefetch={false}
+        className="flex cursor-pointer items-center gap-2.5"
+        onClick={onNavigate}
+      >
         <NavIconBox icon={Icon} active={isActive} size="sm" />
         <span className="min-w-0 flex-1 truncate">{t(item.title)}</span>
       </Link>
@@ -116,6 +126,7 @@ export function AppMobileNavLink({ item, isActive, onNavigate }: AppMobileNavLin
   return (
     <Link
       href={item.url}
+      prefetch={false}
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-popover-foreground outline-none transition-colors",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
