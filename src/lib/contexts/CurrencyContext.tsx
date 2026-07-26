@@ -52,7 +52,10 @@ function formatCurrencyValue(amount: number, code: CurrencyCode): string {
   let result = formatter.format(amount)
 
   if (code === "FCFA") {
-    result = result.replace("F CFA", "FCFA").replace("XOF", "FCFA")
+    // Intl utilise souvent U+202F (espace fine) entre F et CFA
+    result = result
+      .replace(/F[\u00A0\u202F\s]*CFA/g, "FCFA")
+      .replace(/XOF/g, "FCFA")
   }
 
   return result

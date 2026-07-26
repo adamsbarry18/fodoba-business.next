@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import { format } from 'date-fns';
 import { Sale, Store, Purchase, StockMovement, Product, CashSession } from '@/lib/types';
-import { formatPdfNumber } from '@/lib/utils';
+import { formatPdfMoney, formatPdfNumber, sanitizePdfText } from '@/lib/utils';
 import { PAYMENT_METHOD_IDS } from '@/lib/constants/payment-methods';
 import { getAppName } from '@/lib/constants/branding';
 import { normalizeProduct } from '@/lib/product-utils';
@@ -22,7 +22,13 @@ export type { SalePrintLabels } from '@/lib/print-labels';
 export type PdfMoneyFormatter = (amountFcfa: number) => string;
 
 function defaultPdfMoney(amountFcfa: number): string {
-  return `${formatPdfNumber(amountFcfa)} FCFA`;
+  return formatPdfMoney(amountFcfa);
+}
+
+/** `formatAmount` UI → texte PDF sans espaces Unicode (sinon glyphes cassés). */
+function resolvePdfMoney(formatMoney?: PdfMoneyFormatter): PdfMoneyFormatter {
+  const base = formatMoney ?? defaultPdfMoney;
+  return (amountFcfa) => sanitizePdfText(base(amountFcfa));
 }
 
 interface JsPdfWithAutoTable extends jsPDF {
@@ -65,21 +71,22 @@ function drawSalePaymentSummary(
   let y = startY;
   const rightX = pageWidth - 5;
   const lineHeight = fontSize === 8 ? 4 : 5;
+  const money = resolvePdfMoney(formatMoney);
 
   doc.setFontSize(fontSize);
   doc.setFont('helvetica', 'normal');
 
   if (sale.discount > 0) {
-    doc.text(`${saleLabels.subtotal}: ${formatMoney(sale.subtotal)}`, 5, y);
+    doc.text(sanitizePdfText(`${saleLabels.subtotal}: ${money(sale.subtotal)}`), 5, y);
     y += lineHeight;
-    doc.text(`${saleLabels.discount}: -${formatMoney(sale.discount)}`, 5, y);
+    doc.text(sanitizePdfText(`${saleLabels.discount}: -${money(sale.discount)}`), 5, y);
     y += lineHeight;
   }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(fontSize + (fontSize === 8 ? 1 : 2));
-  doc.text(`${saleLabels.total}:`, 5, y);
-  doc.text(formatMoney(sale.total), rightX, y, { align: 'right' });
+  doc.text(sanitizePdfText(`${saleLabels.total}:`), 5, y);
+  doc.text(money(sale.total), rightX, y, { align: 'right' });
   y += lineHeight + 1;
 
   doc.setFont('helvetica', 'normal');
@@ -88,13 +95,13 @@ function drawSalePaymentSummary(
   const paidPayments = sale.payments.filter((payment) => payment.amount > 0);
   if (paidPayments.length > 0) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`${saleLabels.paymentsTitle}:`, 5, y);
+    doc.text(sanitizePdfText(`${saleLabels.paymentsTitle}:`), 5, y);
     y += lineHeight;
     doc.setFont('helvetica', 'normal');
     for (const payment of paidPayments) {
       const methodLabel = labels.resolvePaymentMethod(payment.method);
       doc.text(
-        `- ${methodLabel}: ${formatMoney(payment.amount)}`,
+        sanitizePdfText(`- ${methodLabel}: ${money(payment.amount)}`),
         5,
         y
       );
@@ -102,12 +109,12 @@ function drawSalePaymentSummary(
     }
   }
 
-  doc.text(`${saleLabels.amountPaid}: ${formatMoney(sale.amountPaid)}`, 5, y);
+  doc.text(sanitizePdfText(`${saleLabels.amountPaid}: ${money(sale.amountPaid)}`), 5, y);
   y += lineHeight;
 
   if (sale.debtAmount > 0) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`${saleLabels.remainingDue}: ${formatMoney(sale.debtAmount)}`, 5, y);
+    doc.text(sanitizePdfText(`${saleLabels.remainingDue}: ${money(sale.debtAmount)}`), 5, y);
     y += lineHeight;
   }
 
@@ -120,6 +127,7 @@ function drawSalePaymentSummary(
  */
 export const PrintService = {
   async generateThermalTicket(sale: Sale, store: Store, labels: PrintLabels, formatMoney: PdfMoneyFormatter = defaultPdfMoney) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const saleLabels = labels.sale;
     const paymentLineCount =
       (sale.discount > 0 ? 2 : 0) +
@@ -185,6 +193,7 @@ export const PrintService = {
   },
 
   async generateA4Invoice(sale: Sale, store: Store, labels: PrintLabels, formatMoney: PdfMoneyFormatter = defaultPdfMoney) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const saleLabels = labels.sale;
     const doc = new jsPDF('p', 'mm', 'a4');
     this.drawHeader(doc, saleLabels.titleInvoice, store, labels.phoneShort);
@@ -220,6 +229,7 @@ export const PrintService = {
   },
 
   async generatePurchaseOrder(purchase: Purchase, store: Store, labels: PrintLabels, formatMoney: PdfMoneyFormatter = defaultPdfMoney) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const l = labels.purchase;
     const doc = new jsPDF('p', 'mm', 'a4');
     this.drawHeader(doc, l.title, store, labels.phoneShort);
@@ -346,6 +356,7 @@ export const PrintService = {
     labels: PrintLabels,
     formatMoney: PdfMoneyFormatter = defaultPdfMoney
   ) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const l = labels.cashAudit;
     const doc = new jsPDF('p', 'mm', 'a4');
     this.drawHeader(doc, l.title, store, labels.phoneShort);
@@ -472,6 +483,7 @@ export const PrintService = {
     categoryName?: string,
     formatMoney: PdfMoneyFormatter = defaultPdfMoney
   ) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const l = labels.productSheet;
     const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -584,6 +596,7 @@ export const PrintService = {
     labels: PrintLabels,
     formatMoney: PdfMoneyFormatter = defaultPdfMoney
   ) {
+    formatMoney = resolvePdfMoney(formatMoney);
     const l = labels.salesReport;
     const doc = new jsPDF('p', 'mm', 'a4');
 

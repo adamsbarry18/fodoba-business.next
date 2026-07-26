@@ -5,6 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Helvetica (jsPDF) ne gère pas les espaces Unicode de `Intl` (U+202F, NBSP…).
+ * Sans normalisation : montants « 3 5 / 0 0 0 » ou caractères `&` entre chaque glyphe.
+ */
+export function sanitizePdfText(text: string): string {
+  return text
+    .normalize("NFC")
+    .replace(/[\u00A0\u202F\u2000-\u200B\u2060\uFEFF]/g, " ")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/F\s*CFA/gi, "FCFA")
+    .replace(/ {2,}/g, " ")
+}
+
 /** Montants lisibles en PDF (espaces ASCII, pas d'espaces insécables Unicode). */
 export function formatPdfNumber(value: number): string {
   return new Intl.NumberFormat("fr-FR", {
@@ -18,4 +31,9 @@ export function formatPdfNumber(value: number): string {
       return part.value
     })
     .join("")
+}
+
+/** Montant + devise sûr pour jsPDF. */
+export function formatPdfMoney(amountFcfa: number, currencyLabel = "FCFA"): string {
+  return sanitizePdfText(`${formatPdfNumber(amountFcfa)} ${currencyLabel}`)
 }
