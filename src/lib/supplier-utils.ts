@@ -1,15 +1,11 @@
 import type { CurrencyCode, Supplier } from "@/lib/types"
+import { CURRENCY_SELECT_OPTIONS } from "@/lib/constants/currencies"
 
 export type SupplierTypeFilter = "all" | Supplier["type"]
 export type SupplierDebtFilter = "all" | "with_debt" | "clear"
 export type SupplierDeleteBlocker = "debt" | "purchases" | "payments"
 
-export const SUPPLIER_CURRENCIES: { value: CurrencyCode; label: string }[] = [
-  { value: "FCFA", label: "FCFA (Référence)" },
-  { value: "GNF", label: "GNF" },
-  { value: "USD", label: "USD ($)" },
-  { value: "EUR", label: "EUR (€)" },
-]
+export const SUPPLIER_CURRENCIES = CURRENCY_SELECT_OPTIONS
 
 export const SUPPLIER_TYPES = [
   {

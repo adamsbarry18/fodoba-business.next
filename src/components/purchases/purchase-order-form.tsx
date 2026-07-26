@@ -39,6 +39,7 @@ import {
   getPurchaseSubtotal,
   getExpensesTotal,
 } from "@/lib/purchase-utils"
+import { STORAGE_CURRENCY } from "@/lib/constants/currencies"
 import { useT } from "@/i18n/context"
 
 const EMPTY_ITEM = (): PurchaseItem => ({
@@ -46,14 +47,14 @@ const EMPTY_ITEM = (): PurchaseItem => ({
   name: "",
   quantity: 1,
   unitCost: 0,
-  currency: "FCFA",
+  currency: STORAGE_CURRENCY,
   exchangeRate: 1,
 })
 
 const EMPTY_EXPENSE = (): PurchaseExpense => ({
   label: "",
   amount: 0,
-  currency: "FCFA",
+  currency: STORAGE_CURRENCY,
   exchangeRate: 1,
 })
 
@@ -103,7 +104,8 @@ export function PurchaseOrderForm({
   const [currentStatus, setCurrentStatus] = useState<"DRAFT" | "ORDERED">(initialStatus)
 
   const getRateForCurrency = useCallback(
-    (currency: CurrencyCode) => (currency === "FCFA" ? 1 : rates[currency] ?? 1),
+    (currency: CurrencyCode) =>
+      currency === STORAGE_CURRENCY ? 1 : rates[currency] ?? 1,
     [rates]
   )
 
@@ -149,7 +151,7 @@ export function PurchaseOrderForm({
                     name: product.name,
                     quantity: 1,
                     unitCost: product.purchasePriceRef,
-                    currency: "FCFA",
+                    currency: STORAGE_CURRENCY,
                     exchangeRate: 1,
                   },
                 ]
@@ -269,7 +271,7 @@ export function PurchaseOrderForm({
               name: product.name,
               quantity: 1,
               unitCost: product.purchasePriceRef,
-              currency: "FCFA" as const,
+              currency: STORAGE_CURRENCY,
               exchangeRate: 1,
             },
           ]
@@ -506,7 +508,7 @@ export function PurchaseOrderForm({
                             onChange={(e) =>
                               updateItem(index, "exchangeRate", Number(e.target.value))
                             }
-                            disabled={item.currency === "FCFA"}
+                            disabled={item.currency === STORAGE_CURRENCY}
                           />
                         </div>
                       </div>

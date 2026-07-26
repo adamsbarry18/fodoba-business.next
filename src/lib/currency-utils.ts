@@ -1,70 +1,33 @@
-import type { LucideIcon } from "lucide-react"
-import { CircleDollarSign, Coins, DollarSign, Euro } from "lucide-react"
-import type { CurrencyCode } from "@/lib/types"
-import type { BadgeTone } from "@/lib/badge-tones"
+import type { CurrencyCode } from "@/lib/constants/currencies"
+import {
+  CURRENCY_META,
+  CURRENCY_ORDER,
+  CURRENCY_SELECT_OPTIONS,
+  DEFAULT_RATES,
+  STORAGE_CURRENCY,
+  getAmountFractionDigits,
+  getIsoCurrencyCode,
+  getRateDecimals,
+} from "@/lib/constants/currencies"
 
-export type CurrencyMeta = {
-  code: CurrencyCode
-  label: string
-  symbol: string
-  tone: BadgeTone
-  icon: LucideIcon
-  decimals: number
-}
-
-/** Devise de stockage / comptable (montants Firestore). */
-export const STORAGE_CURRENCY: CurrencyCode = "FCFA"
-
-export const DEFAULT_RATES: Record<CurrencyCode, number> = {
-  FCFA: 1,
-  GNF: 0.065,
-  USD: 600,
-  EUR: 655.957,
-}
-
-export const CURRENCY_ORDER: CurrencyCode[] = ["FCFA", "GNF", "USD", "EUR"]
+export type { CurrencyCode, CurrencyMeta } from "@/lib/constants/currencies"
+export {
+  CURRENCY_CODES,
+  CURRENCY_META,
+  CURRENCY_ORDER,
+  CURRENCY_SELECT_OPTIONS,
+  DEFAULT_RATES,
+  STORAGE_CURRENCY,
+  getAmountFractionDigits,
+  getIsoCurrencyCode,
+  getRateDecimals,
+  isValidCurrencyCode,
+} from "@/lib/constants/currencies"
 
 /** @deprecated Préférer editableCurrencies(referenceCurrency) */
-export const EDITABLE_CURRENCIES: CurrencyCode[] = ["GNF", "USD", "EUR"]
-
-export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
-  FCFA: {
-    code: "FCFA",
-    label: "Franc CFA",
-    symbol: "FCFA",
-    tone: "primary-soft",
-    icon: CircleDollarSign,
-    decimals: 0,
-  },
-  GNF: {
-    code: "GNF",
-    label: "Franc guinéen",
-    symbol: "GNF",
-    tone: "warning",
-    icon: Coins,
-    decimals: 4,
-  },
-  USD: {
-    code: "USD",
-    label: "Dollar US",
-    symbol: "$",
-    tone: "success",
-    icon: DollarSign,
-    decimals: 2,
-  },
-  EUR: {
-    code: "EUR",
-    label: "Euro",
-    symbol: "€",
-    tone: "info",
-    icon: Euro,
-    decimals: 3,
-  },
-}
-
-export function isValidCurrencyCode(code: string): code is CurrencyCode {
-  return (CURRENCY_ORDER as string[]).includes(code)
-}
+export const EDITABLE_CURRENCIES: CurrencyCode[] = CURRENCY_ORDER.filter(
+  (code) => code !== STORAGE_CURRENCY
+)
 
 export function isReferenceCurrency(
   code: CurrencyCode,
@@ -148,7 +111,6 @@ export function displayedRateToStorageRate(
   rates: Record<CurrencyCode, number>
 ): number {
   if (code === STORAGE_CURRENCY) {
-    // 1 FCFA = displayedRateVsRef REF → rate(REF) = 1 / displayedRateVsRef
     if (displayedRateVsRef <= 0) return rates[reference] ?? DEFAULT_RATES[reference]
     return 1 / displayedRateVsRef
   }
@@ -163,8 +125,29 @@ export function editableCurrencies(reference: CurrencyCode): CurrencyCode[] {
   return CURRENCY_ORDER.filter((code) => code !== reference)
 }
 
+/** Formatage montant pour l’UI (Intl + libellé FCFA). */
+export function formatCurrencyValue(amount: number, code: CurrencyCode): string {
+  const digits = getAmountFractionDigits(code)
+  const formatter = new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: getIsoCurrencyCode(code),
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+
+  let result = formatter.format(amount)
+
+  if (code === STORAGE_CURRENCY) {
+    result = result
+      .replace(/F[\u00A0\u202F\s]*CFA/g, CURRENCY_META.FCFA.symbol)
+      .replace(/XOF/g, CURRENCY_META.FCFA.symbol)
+  }
+
+  return result
+}
+
 export function formatRate(value: number, code: CurrencyCode): string {
-  const decimals = CURRENCY_META[code].decimals
+  const decimals = getRateDecimals(code)
   return value.toLocaleString("fr-FR", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -187,3 +170,6 @@ export type AppCurrencySettings = {
 export const DEFAULT_APP_SETTINGS: AppCurrencySettings = {
   referenceCurrency: STORAGE_CURRENCY,
 }
+
+/** @deprecated Utiliser CURRENCY_SELECT_OPTIONS */
+export const SUPPLIER_CURRENCY_OPTIONS = CURRENCY_SELECT_OPTIONS

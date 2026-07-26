@@ -1,10 +1,11 @@
 import type { LucideIcon } from "lucide-react"
 import { Clock, Truck, CheckCircle2, BadgeAlert } from "lucide-react"
 import type { Purchase, PurchaseItem, PurchaseExpense } from "@/lib/types"
+import { CURRENCY_CODES } from "@/lib/constants/currencies"
 
 export type PurchaseStatus = Purchase["status"]
 
-export const PURCHASE_CURRENCIES = ["FCFA", "GNF", "USD", "EUR"] as const
+export const PURCHASE_CURRENCIES = CURRENCY_CODES
 
 export const PURCHASE_STATUS_ORDER: PurchaseStatus[] = [
   "DRAFT",

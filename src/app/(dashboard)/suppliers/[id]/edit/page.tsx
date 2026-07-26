@@ -16,6 +16,7 @@ import { ArrowLeft, Loader2, Save } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useT } from "@/i18n/context"
+import { SUPPLIER_CURRENCIES } from "@/lib/supplier-utils"
 
 export default function EditSupplierPage() {
   const router = useRouter()
@@ -162,10 +163,11 @@ export default function EditSupplierPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="FCFA">FCFA</SelectItem>
-                          <SelectItem value="GNF">GNF</SelectItem>
-                          <SelectItem value="USD">USD ($)</SelectItem>
-                          <SelectItem value="EUR">EUR (€)</SelectItem>
+                          {SUPPLIER_CURRENCIES.map((c) => (
+                            <SelectItem key={c.value} value={c.value}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

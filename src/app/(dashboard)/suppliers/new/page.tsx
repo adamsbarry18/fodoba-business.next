@@ -42,6 +42,7 @@ import Link from "next/link"
 import { useCreateReturn } from "@/hooks/use-create-return"
 import { ENTITY_ROUTES, readReturnContext } from "@/lib/navigation/return-to"
 import { SUPPLIER_CURRENCIES, SUPPLIER_TYPES } from "@/lib/supplier-utils"
+import { STORAGE_CURRENCY } from "@/lib/constants/currencies"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { cn } from "@/lib/utils"
 import { useT } from "@/i18n/context"
@@ -64,7 +65,7 @@ export default function NewSupplierPage() {
       country: "",
       city: "",
       type: "local",
-      defaultCurrency: "FCFA",
+      defaultCurrency: STORAGE_CURRENCY,
       paymentTerms: "Comptant",
     },
   })

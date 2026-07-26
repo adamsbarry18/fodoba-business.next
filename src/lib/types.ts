@@ -1,6 +1,9 @@
 
 import { z } from "zod";
 import type { FieldValue, Timestamp } from "firebase/firestore";
+import { CURRENCY_CODES, type CurrencyCode } from "@/lib/constants/currencies";
+
+export type { CurrencyCode };
 
 /** Horodatage Firestore : Timestamp lu, FieldValue à l'écriture, Date JS ou chaîne. */
 export type FirestoreDate = Timestamp | FieldValue | Date | string | { toDate?: () => Date };
@@ -174,7 +177,7 @@ export const SupplierSchema = z.object({
   country: z.string().min(2, "Le pays est requis"),
   city: z.string().optional(),
   type: z.enum(["local", "import"]),
-  defaultCurrency: z.enum(["FCFA", "GNF", "USD", "EUR"]),
+  defaultCurrency: z.enum(CURRENCY_CODES),
   paymentTerms: z.string().optional(),
   currentDebt: z.number().default(0),
   createdAt: z.any().optional(),
@@ -195,8 +198,6 @@ export const SupplierPaymentSchema = z.object({
 
 export type SupplierPayment = z.infer<typeof SupplierPaymentSchema>;
 
-export type CurrencyCode = "FCFA" | "GNF" | "USD" | "EUR";
-
 export interface ExchangeRate {
   code: CurrencyCode;
   rateToRef: number;
@@ -209,7 +210,7 @@ export const PurchaseItemSchema = z.object({
   name: z.string(),
   quantity: z.number().min(0.01),
   unitCost: z.number().min(0),
-  currency: z.enum(["FCFA", "GNF", "USD", "EUR"]),
+  currency: z.enum(CURRENCY_CODES),
   exchangeRate: z.number().min(0.0001),
   landedCostFCFA: z.number().optional(),
 });
@@ -219,7 +220,7 @@ export type PurchaseItem = z.infer<typeof PurchaseItemSchema>;
 export const PurchaseExpenseSchema = z.object({
   label: z.string(),
   amount: z.number().min(0),
-  currency: z.enum(["FCFA", "GNF", "USD", "EUR"]),
+  currency: z.enum(CURRENCY_CODES),
   exchangeRate: z.number().min(0.0001),
 });
 
