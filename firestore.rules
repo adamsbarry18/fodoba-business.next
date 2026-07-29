@@ -126,6 +126,7 @@ service cloud.firestore {
             && isStoreAuthorized(request.resource.data.storeId)
           )
         );
+      allow delete: if isAdmin();
     }
 
     // Dépenses : Tous les rôles peuvent créer (CDC 2.2).

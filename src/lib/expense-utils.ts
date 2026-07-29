@@ -1,5 +1,6 @@
 import type { Expense } from "@/lib/types"
 import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export const EXPENSE_CATEGORIES = [
   "Loyer",
@@ -30,14 +31,14 @@ export function filterExpenses(
     method?: ExpenseMethodFilter
   }
 ): Expense[] {
-  const term = (opts.search ?? "").trim().toLowerCase()
+  const term = prepareSearchQuery(opts.search)
   return expenses.filter((e) => {
     const matchesSearch =
       !term ||
-      e.label.toLowerCase().includes(term) ||
-      e.category.toLowerCase().includes(term) ||
-      (e.notes ?? "").toLowerCase().includes(term) ||
-      e.performedByName.toLowerCase().includes(term)
+      matchesAnySearchField(
+        [e.label, e.category, e.notes, e.performedByName],
+        term
+      )
 
     const matchesCategory =
       !opts.category || opts.category === "all" || e.category === opts.category

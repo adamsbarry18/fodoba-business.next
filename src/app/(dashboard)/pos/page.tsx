@@ -24,7 +24,6 @@ import {
   Printer,
   Loader2,
   CheckCircle2,
-  ChevronDown,
   LayoutGrid,
   List,
   User,
@@ -75,6 +74,7 @@ import {
 import { useSaleTicket } from "@/hooks/use-sale-ticket"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
+import { matchesAnySearchField } from "@/lib/search-utils"
 import { useT } from "@/i18n/context"
 
 const POS_FETCH_SIZE = 48
@@ -94,6 +94,7 @@ export default function POSPage() {
   
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | undefined>(undefined)
   const [hasMore, setHasMore] = useState(true)
+  const [catalogTotalCount, setCatalogTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   
@@ -146,14 +147,18 @@ export default function POSPage() {
     const loadInitialData = async () => {
       setLoading(true)
       try {
-        const [prodResult, clientResult, categoriesResult] = await Promise.all([
-          ProductService.listProducts({ active: true }, POS_FETCH_SIZE),
-          ClientService.listClients(),
-          CategoryService.listCategories()
-        ])
+        const catalogFilters = { active: true as const }
+        const [prodResult, catalogCount, clientResult, categoriesResult] =
+          await Promise.all([
+            ProductService.listProducts(catalogFilters, POS_FETCH_SIZE),
+            ProductService.countProducts(catalogFilters),
+            ClientService.listClients(),
+            CategoryService.listCategories(),
+          ])
         setProducts(prodResult.products)
         setLastVisible(prodResult.lastVisible)
         setHasMore(prodResult.products.length === POS_FETCH_SIZE)
+        setCatalogTotalCount(catalogCount)
         setClients(clientResult)
         setCategories(categoriesResult)
         if (storeId) {
@@ -200,6 +205,7 @@ export default function POSPage() {
   const lastVisibleRef = useRef(lastVisible)
   const hasMoreRef = useRef(hasMore)
   const loadingMoreRef = useRef(loadingMore)
+  const productsRef = useRef(products)
   const prevSearchTermRef = useRef(searchTerm)
 
   useEffect(() => {
@@ -211,6 +217,16 @@ export default function POSPage() {
   useEffect(() => {
     loadingMoreRef.current = loadingMore
   }, [loadingMore])
+  useEffect(() => {
+    productsRef.current = products
+  }, [products])
+
+  const buildCatalogFilters = useCallback((categoryId: string) => {
+    return {
+      active: true as const,
+      categoryId: categoryId === "all" ? undefined : categoryId,
+    }
+  }, [])
 
   const loadProductsByCategory = useCallback(async (categoryId: string, isLoadMore = false) => {
     if (isLoadMore) {
@@ -221,23 +237,33 @@ export default function POSPage() {
     }
 
     try {
-      const filters = {
-        active: true,
-        categoryId: categoryId === "all" ? undefined : categoryId,
-      }
+      const filters = buildCatalogFilters(categoryId)
 
-      const result = await ProductService.listProducts(
-        filters,
-        POS_FETCH_SIZE,
-        isLoadMore ? lastVisibleRef.current : undefined
-      )
+      const [result, totalCount] = await Promise.all([
+        ProductService.listProducts(
+          filters,
+          POS_FETCH_SIZE,
+          isLoadMore ? lastVisibleRef.current : undefined
+        ),
+        isLoadMore
+          ? Promise.resolve(null)
+          : ProductService.countProducts(filters),
+      ])
 
       if (isLoadMore) {
-        setProducts((prev) => [...prev, ...result.products])
+        setProducts((prev) => {
+          const next = [...prev, ...result.products]
+          productsRef.current = next
+          return next
+        })
         void loadStocksForProducts(result.products, true)
       } else {
         setProducts(result.products)
+        productsRef.current = result.products
         void loadStocksForProducts(result.products)
+        if (typeof totalCount === "number") {
+          setCatalogTotalCount(totalCount)
+        }
       }
 
       setLastVisible(result.lastVisible)
@@ -248,7 +274,7 @@ export default function POSPage() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [loadStocksForProducts, t])
+  }, [buildCatalogFilters, loadStocksForProducts, t])
 
   // Handle Category Selection
   const handleCategoryChange = (categoryId: string) => {
@@ -257,11 +283,6 @@ export default function POSPage() {
     prevSearchTermRef.current = ""
     setSearchTerm("")
     void loadProductsByCategory(categoryId)
-  }
-
-  // Load more handler
-  const handleLoadMore = () => {
-    loadProductsByCategory(selectedCategoryId, true)
   }
 
   // Recherche Firestore debouncée ; reload catégorie uniquement quand on efface la recherche
@@ -281,7 +302,9 @@ export default function POSPage() {
       try {
         const searchResults = await ProductService.searchProducts(searchTerm)
         setProducts(searchResults)
+        productsRef.current = searchResults
         setHasMore(false)
+        setCatalogTotalCount(searchResults.length)
         void loadStocksForProducts(searchResults)
       } catch {
         toast.error(t("pos.errorSearch"))
@@ -511,10 +534,9 @@ export default function POSPage() {
   // Filter clients locally for autocomplete
   const filteredClients = useMemo(() => {
     if (!clientSearch) return clients.slice(0, 10)
-    return clients.filter(c => 
-      c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-      c.phone?.includes(clientSearch)
-    ).slice(0, 10)
+    return clients
+      .filter((c) => matchesAnySearchField([c.name, c.phone], clientSearch))
+      .slice(0, 10)
   }, [clients, clientSearch])
 
   // Get name of selected client
@@ -540,7 +562,33 @@ export default function POSPage() {
   } = useClientPagination(products, {
     pageSize: POS_PAGE_SIZE,
     resetKey: catalogResetKey,
+    totalCount: catalogTotalCount,
   })
+
+  /** Charge le buffer jusqu’à la page demandée, puis navigue (total pages réel). */
+  const handleCatalogPageChange = useCallback(
+    async (nextPage: number) => {
+      if (nextPage < 1 || nextPage > catalogTotalPages) return
+
+      if (!searchTerm.trim()) {
+        const needed = nextPage * POS_PAGE_SIZE
+        while (productsRef.current.length < needed && hasMoreRef.current) {
+          const before = productsRef.current.length
+          await loadProductsByCategory(selectedCategoryId, true)
+          if (productsRef.current.length <= before) break
+        }
+      }
+
+      setCatalogPage(nextPage)
+    },
+    [
+      catalogTotalPages,
+      loadProductsByCategory,
+      searchTerm,
+      selectedCategoryId,
+      setCatalogPage,
+    ]
+  )
 
   const refreshCashSession = () => {
     if (!activeStore?.id) return
@@ -877,27 +925,12 @@ export default function POSPage() {
                 totalItems={catalogTotalItems}
                 rangeStart={catalogRangeStart}
                 rangeEnd={catalogRangeEnd}
-                onPageChange={setCatalogPage}
+                onPageChange={(page) => {
+                  void handleCatalogPageChange(page)
+                }}
+                loadingMore={loadingMore}
                 className="rounded-2xl border bg-card"
               />
-
-              {hasMore && !searchTerm && catalogPage === catalogTotalPages && (
-                <div className="flex justify-center pb-2">
-                  <Button
-                    variant="ghost"
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="h-9 rounded-xl border border-border bg-card px-4 text-xs font-bold text-muted-foreground hover:text-primary"
-                  >
-                    {loadingMore ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <ChevronDown className="mr-2 h-4 w-4" />
-                    )}
-                    {t("pos.loadMore", { count: products.length })}
-                  </Button>
-                </div>
-              )}
             </>
           ) : (
             /* Empty State */

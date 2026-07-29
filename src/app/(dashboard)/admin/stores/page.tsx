@@ -59,6 +59,7 @@ import { TableColumnToggle } from "@/components/ui/table-column-toggle"
 import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { STORE_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useT, useLocale } from "@/i18n/context"
+import { matchesAnySearchField } from "@/lib/search-utils"
 import { getDateLocale } from "@/i18n/get-date-locale"
 
 const PAGE_SIZE = 50
@@ -146,14 +147,11 @@ export default function StoresAdminPage() {
   }, [t])
 
   const filteredStores = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
     return stores.filter((store) => {
-      const matchesSearch =
-        !term ||
-        store.name.toLowerCase().includes(term) ||
-        store.code.toLowerCase().includes(term) ||
-        store.address.toLowerCase().includes(term) ||
-        store.phone.toLowerCase().includes(term)
+      const matchesSearch = matchesAnySearchField(
+        [store.name, store.code, store.address, store.phone],
+        searchTerm
+      )
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" ? store.active : !store.active)

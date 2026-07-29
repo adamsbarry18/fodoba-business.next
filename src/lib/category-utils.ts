@@ -1,5 +1,6 @@
 import type { Category } from "@/lib/types"
 import { toneFromString } from "@/lib/badge-tones"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export interface CategoryNode extends Category {
   children: CategoryNode[]
@@ -39,14 +40,12 @@ export function filterCategoriesForTree(
   search: string,
   status: CategoryStatusFilter
 ): Category[] {
-  const term = search.trim().toLowerCase()
+  const term = prepareSearchQuery(search)
   const matching = new Set<string>()
 
   for (const cat of categories) {
     const matchesSearch =
-      !term ||
-      cat.name.toLowerCase().includes(term) ||
-      (cat.description ?? "").toLowerCase().includes(term)
+      !term || matchesAnySearchField([cat.name, cat.description], term)
     const matchesStatus =
       status === "all" || (status === "active" ? cat.active : !cat.active)
     if (matchesSearch && matchesStatus) matching.add(cat.id)

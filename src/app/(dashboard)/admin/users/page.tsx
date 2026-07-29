@@ -63,6 +63,7 @@ import { TableColumnToggle } from "@/components/ui/table-column-toggle"
 import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { USER_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useT } from "@/i18n/context"
+import { matchesAnySearchField } from "@/lib/search-utils"
 
 const PAGE_SIZE = 50
 
@@ -161,13 +162,11 @@ export default function UsersAdminPage() {
   }, [t])
 
   const filteredUsers = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
     return users.filter((user) => {
-      const matchesSearch =
-        !term ||
-        getUserDisplayName(user).toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term) ||
-        user.role.toLowerCase().includes(term)
+      const matchesSearch = matchesAnySearchField(
+        [getUserDisplayName(user), user.email, user.role],
+        searchTerm
+      )
       const matchesRole = roleFilter === "all" || user.role === roleFilter
       const matchesStatus =
         statusFilter === "all" ||

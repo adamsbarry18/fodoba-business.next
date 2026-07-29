@@ -7,6 +7,11 @@ export function useClientPagination<T>(
   options?: {
     pageSize?: number
     resetKey?: string | number
+    /**
+     * Total réel (ex. count serveur). Si fourni, pages / libellés
+     * reflètent ce total même si le buffer local n’est pas encore complet.
+     */
+    totalCount?: number
   }
 ) {
   const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE
@@ -16,9 +21,12 @@ export function useClientPagination<T>(
     setPage(1)
   }, [options?.resetKey])
 
-  const totalItems = items.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
-  const safePage = Math.min(page, totalPages)
+  const totalItems =
+    typeof options?.totalCount === "number"
+      ? Math.max(0, options.totalCount)
+      : items.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1)
+  const safePage = Math.min(Math.max(1, page), totalPages)
 
   const paginatedItems = useMemo(() => {
     const start = (safePage - 1) * pageSize

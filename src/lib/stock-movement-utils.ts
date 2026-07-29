@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import type { StockMovement } from "@/lib/types"
 import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export type MovementType = StockMovement["type"]
 export type MovementTypeFilter = "all" | MovementType
@@ -42,13 +43,14 @@ export function filterMovements(
   movements: StockMovement[],
   opts: { search?: string; type?: MovementTypeFilter }
 ): StockMovement[] {
-  const term = (opts.search ?? "").trim().toLowerCase()
+  const term = prepareSearchQuery(opts.search)
   return movements.filter((m) => {
     const matchesSearch =
       !term ||
-      m.productName.toLowerCase().includes(term) ||
-      (m.reason ?? "").toLowerCase().includes(term) ||
-      m.performedByName.toLowerCase().includes(term)
+      matchesAnySearchField(
+        [m.productName, m.reason, m.performedByName],
+        term
+      )
 
     const matchesType =
       !opts.type || opts.type === "all" || m.type === opts.type

@@ -13,6 +13,7 @@ import {
   limit,
   startAfter,
   writeBatch,
+  getCountFromServer,
   DocumentSnapshot,
   type QueryConstraint
 } from "firebase/firestore";
@@ -28,10 +29,18 @@ import {
   type DecomposedStock,
 } from "@/lib/stock-utils";
 import { getRetailUnitsPerPack } from "@/lib/product-utils";
+import {
+  matchesAnySearchField,
+  normalizeSearchText,
+  prepareSearchQuery,
+} from "@/lib/search-utils";
+import type { ProductDeleteBlocker } from "@/lib/product-utils";
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper";
 
 const COLLECTION_NAME = "products";
 const STOCKS_COLLECTION = "stocks";
+const MOVEMENTS_COLLECTION = "inventory_movements";
+const SEARCH_SCAN_LIMIT = 500;
 
 function buildProductPayload(
   id: string,
@@ -243,21 +252,40 @@ export const ProductService = {
     };
   },
 
+  /** Nombre total de produits pour les filtres donnés (pagination UI). */
+  async countProducts(filters?: {
+    categoryId?: string
+    active?: boolean
+  }): Promise<number> {
+    const constraints: QueryConstraint[] = []
+    if (filters?.categoryId) {
+      constraints.push(where("categoryId", "==", filters.categoryId))
+    }
+    if (filters?.active !== undefined) {
+      constraints.push(where("active", "==", filters.active))
+    }
+    const q =
+      constraints.length > 0
+        ? query(collection(db, COLLECTION_NAME), ...constraints)
+        : query(collection(db, COLLECTION_NAME))
+    const snap = await getCountFromServer(q)
+    return snap.data().count
+  },
+
   async searchProducts(searchTerm: string) {
-    if (!searchTerm) return [];
-    const term = searchTerm.toLowerCase();
+    const term = prepareSearchQuery(searchTerm);
+    if (!term) return [];
+
     const q = query(
-      collection(db, COLLECTION_NAME), 
+      collection(db, COLLECTION_NAME),
       where("active", "==", true),
-      limit(50)
+      limit(SEARCH_SCAN_LIMIT)
     );
     const snap = await getDocs(q);
-    const all = snap.docs.map(doc => doc.data() as Product);
-    return all.filter(p => 
-      p.name.toLowerCase().includes(term) || 
-      p.sku.toLowerCase().includes(term) || 
-      p.barcode?.toLowerCase().includes(term)
-    );
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product);
+    return all
+      .filter((p) => matchesAnySearchField([p.name, p.sku, p.barcode], term))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   },
 
   /** Recherche exacte code-barres / SKU / ID produit (scan). */
@@ -290,15 +318,16 @@ export const ProductService = {
     const idRef = doc(db, COLLECTION_NAME, trimmed);
     const idSnap = await getDoc(idRef);
     if (idSnap.exists()) {
-      const product = idSnap.data() as Product;
+      const product = { id: idSnap.id, ...idSnap.data() } as Product;
       if (product.active) return product;
     }
 
     const fuzzy = await this.searchProducts(trimmed);
+    const needle = normalizeSearchText(trimmed);
     const exactFuzzy = fuzzy.find(
       (p) =>
-        p.barcode?.toLowerCase() === trimmed.toLowerCase() ||
-        p.sku.toLowerCase() === trimmed.toLowerCase() ||
+        normalizeSearchText(p.barcode ?? "") === needle ||
+        normalizeSearchText(p.sku) === needle ||
         p.id === trimmed
     );
     return exactFuzzy ?? fuzzy[0] ?? null;
@@ -403,5 +432,52 @@ export const ProductService = {
       ...buildStockLevelPayload(productId, storeId, next),
       lastUpdated: serverTimestamp(),
     });
-  }
+  },
+
+  async getDeleteBlockers(productId: string): Promise<ProductDeleteBlocker[]> {
+    const product = await this.getProduct(productId);
+    if (!product) throw new Error("PRODUCT_NOT_FOUND");
+
+    const blockers: ProductDeleteBlocker[] = [];
+
+    const [stockSnap, movementSnap] = await Promise.all([
+      getDocs(
+        query(collection(db, STOCKS_COLLECTION), where("productId", "==", productId))
+      ),
+      getDocs(
+        query(
+          collection(db, MOVEMENTS_COLLECTION),
+          where("productId", "==", productId),
+          limit(1)
+        )
+      ),
+    ]);
+
+    const hasPositiveStock = stockSnap.docs.some((d) => {
+      const qty = Number((d.data() as StockLevel).quantity ?? 0);
+      return qty > 0;
+    });
+    if (hasPositiveStock) blockers.push("stock");
+    if (!movementSnap.empty) blockers.push("movements");
+
+    return blockers;
+  },
+
+  async deleteProduct(productId: string) {
+    const blockers = await this.getDeleteBlockers(productId);
+    if (blockers.length > 0) {
+      throw new Error(`PRODUCT_DELETE_BLOCKED:${blockers.join(",")}`);
+    }
+
+    const stockSnap = await getDocs(
+      query(collection(db, STOCKS_COLLECTION), where("productId", "==", productId))
+    );
+
+    const batch = writeBatch(db);
+    stockSnap.docs.forEach((stockDoc) => {
+      batch.delete(stockDoc.ref);
+    });
+    batch.delete(doc(db, COLLECTION_NAME, productId));
+    await batch.commit();
+  },
 };

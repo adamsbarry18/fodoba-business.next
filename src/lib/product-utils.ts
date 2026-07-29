@@ -1,4 +1,5 @@
 import type { Product } from "@/lib/types"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export const PRODUCT_UNITS = [
   { value: "Kg", label: "Kilogramme (Kg)" },
@@ -12,6 +13,21 @@ export const PRODUCT_UNITS = [
 ] as const
 
 export type StockFilter = "all" | "low" | "out"
+
+export type ProductDeleteBlocker = "stock" | "movements"
+
+export function getProductDeleteBlockerMessageKey(
+  blocker: ProductDeleteBlocker
+): string {
+  switch (blocker) {
+    case "stock":
+      return "inventory.deleteBlocked.stock"
+    case "movements":
+      return "inventory.deleteBlocked.movements"
+    default:
+      return "inventory.deleteBlocked.movements"
+  }
+}
 
 export function normalizeProduct(product: Product): Product {
   return {
@@ -164,21 +180,15 @@ export function filterProducts(
     stocks?: Record<string, number>
   }
 ): Product[] {
-  const term = options.search?.trim().toLowerCase() ?? ""
+  const term = prepareSearchQuery(options.search)
   const categoryId = options.categoryId
   const stockFilter = options.stockFilter ?? "all"
   const stocks = options.stocks ?? {}
 
   return products.filter((p) => {
-    const name = (p.name ?? "").toLowerCase()
-    const sku = (p.sku ?? "").toLowerCase()
-    const barcode = (p.barcode ?? "").toLowerCase()
-
     const matchesSearch =
       !term ||
-      name.includes(term) ||
-      sku.includes(term) ||
-      barcode.includes(term)
+      matchesAnySearchField([p.name, p.sku, p.barcode], term)
 
     const matchesCategory =
       !categoryId || categoryId === "all" || p.categoryId === categoryId

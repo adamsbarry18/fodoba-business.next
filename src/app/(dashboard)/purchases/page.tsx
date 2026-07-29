@@ -65,6 +65,7 @@ import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { PURCHASE_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useT } from "@/i18n/context"
 import { useCurrency } from "@/hooks/use-currency"
+import { matchesAnySearchField } from "@/lib/search-utils"
 
 const PURCHASE_COLUMN_LABEL_KEYS: Record<string, string> = {
   ref: "purchases.colRefDate",
@@ -154,14 +155,16 @@ export default function PurchasesPage() {
   }, [activeStore?.id, t])
 
   const filteredPurchases = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
     return purchases.filter((p) => {
-      const matchesSearch =
-        !term ||
-        p.supplierName.toLowerCase().includes(term) ||
-        p.performedByName.toLowerCase().includes(term) ||
-        formatPurchaseRef(p.id).toLowerCase().includes(term) ||
-        p.id.toLowerCase().includes(term)
+      const matchesSearch = matchesAnySearchField(
+        [
+          p.supplierName,
+          p.performedByName,
+          formatPurchaseRef(p.id),
+          p.id,
+        ],
+        searchTerm
+      )
       const matchesStatus = statusFilter === "all" || p.status === statusFilter
       return matchesSearch && matchesStatus
     })

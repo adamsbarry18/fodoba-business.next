@@ -38,6 +38,7 @@ import { TableColumnToggle } from "@/components/ui/table-column-toggle"
 import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { AUDIT_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useT, useLocale } from "@/i18n/context"
+import { matchesAnySearchField } from "@/lib/search-utils"
 import { getDateLocale } from "@/i18n/get-date-locale"
 
 const PAGE_SIZE = 50
@@ -125,19 +126,21 @@ export default function AuditLogsPage() {
   }, [t])
 
   const filteredLogs = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
     return logs.filter((log) => {
       const config = getAuditActionConfig(log.action)
       const actionLabel = getActionLabel(log.action)
       const matchesCategory =
         categoryFilter === "all" || config.category === categoryFilter
-      const matchesSearch =
-        !term ||
-        log.details.toLowerCase().includes(term) ||
-        log.action.toLowerCase().includes(term) ||
-        actionLabel.toLowerCase().includes(term) ||
-        (log.performedByName ?? "").toLowerCase().includes(term) ||
-        (log.targetId ?? "").toLowerCase().includes(term)
+      const matchesSearch = matchesAnySearchField(
+        [
+          log.details,
+          log.action,
+          actionLabel,
+          log.performedByName,
+          log.targetId,
+        ],
+        searchTerm
+      )
       return matchesCategory && matchesSearch
     })
   }, [logs, searchTerm, categoryFilter, getActionLabel])

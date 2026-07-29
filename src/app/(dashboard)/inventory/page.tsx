@@ -30,13 +30,16 @@ import {
   Boxes,
   TrendingDown,
   MoreVertical,
+  Trash2,
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { useStore } from "@/lib/contexts/StoreContext"
+import { useAuth } from "@/lib/contexts/AuthContext"
 import { useCurrency } from "@/hooks/use-currency"
 import { usePermissions } from "@/hooks/use-permissions"
+import { ProductDeleteDialog } from "@/components/inventory/product-delete-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +91,7 @@ export default function InventoryPage() {
   const router = useRouter()
   const { activeStore } = useStore()
   const { formatAmount } = useCurrency()
+  const { isAdmin } = useAuth()
   const { can } = usePermissions()
   const t = useT()
 
@@ -99,8 +103,10 @@ export default function InventoryPage() {
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [stockFilter, setStockFilter] = useState<StockFilter>("all")
   const [scanProcessing, setScanProcessing] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
 
   const canManage = can("manage:catalog")
+  const canDeleteProduct = isAdmin
 
   const { isVisible, toggleColumn, resetColumns, columns: tableColumns } =
     useTranslatedTableColumns("inventory", INVENTORY_TABLE_COLUMNS, INVENTORY_COLUMN_LABEL_KEYS)
@@ -595,6 +601,15 @@ export default function InventoryPage() {
                                     </Link>
                                   </DropdownMenuItem>
                                 )}
+                                {canDeleteProduct && (
+                                  <DropdownMenuItem
+                                    className="flex items-center gap-2 rounded-lg text-destructive focus:text-destructive"
+                                    onSelect={() => setProductToDelete(p)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    {t("common.delete")}
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -618,6 +633,17 @@ export default function InventoryPage() {
           )}
         </CardContent>
       </Card>
+
+      <ProductDeleteDialog
+        product={productToDelete}
+        open={Boolean(productToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setProductToDelete(null)
+        }}
+        onDeleted={() => {
+          void loadCatalog()
+        }}
+      />
     </div>
   )
 }

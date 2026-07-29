@@ -7,6 +7,7 @@ import {
   Truck,
 } from "lucide-react"
 import type { Permission } from "@/lib/auth/permissions"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export type ReportCategory = "finance" | "logistics" | "clients"
 
@@ -95,15 +96,13 @@ export function filterReports(
     can: (permission: Permission) => boolean
   }
 ): ReportCard[] {
-  const term = (opts.search ?? "").trim().toLowerCase()
+  const term = prepareSearchQuery(opts.search)
   return cards.filter((report) => {
     if (!opts.can(report.permission)) return false
     const matchesCategory =
       !opts.category || opts.category === "all" || report.category === opts.category
     const matchesSearch =
-      !term ||
-      report.title.toLowerCase().includes(term) ||
-      report.description.toLowerCase().includes(term)
+      !term || matchesAnySearchField([report.title, report.description], term)
     return matchesCategory && matchesSearch
   })
 }

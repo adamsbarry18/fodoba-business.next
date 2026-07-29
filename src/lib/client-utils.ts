@@ -1,4 +1,5 @@
 import type { Client } from "@/lib/types"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export type ClientTypeFilter = "all" | Client["type"]
 export type ClientStatusFilter = "all" | Client["status"]
@@ -72,13 +73,11 @@ export function filterClients(
     debt?: ClientDebtFilter
   }
 ): Client[] {
-  const term = (opts.search ?? "").trim().toLowerCase()
+  const term = prepareSearchQuery(opts.search)
   return clients.filter((c) => {
     const matchesSearch =
       !term ||
-      c.name.toLowerCase().includes(term) ||
-      c.phone.includes(term) ||
-      (c.address ?? "").toLowerCase().includes(term)
+      matchesAnySearchField([c.name, c.phone, c.address], term)
 
     const matchesType =
       !opts.type || opts.type === "all" || c.type === opts.type

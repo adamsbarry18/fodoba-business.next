@@ -1,5 +1,6 @@
 import type { CurrencyCode, Supplier } from "@/lib/types"
 import { CURRENCY_SELECT_OPTIONS } from "@/lib/constants/currencies"
+import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export type SupplierTypeFilter = "all" | Supplier["type"]
 export type SupplierDebtFilter = "all" | "with_debt" | "clear"
@@ -41,14 +42,14 @@ export function filterSuppliers(
     debt?: SupplierDebtFilter
   }
 ): Supplier[] {
-  const term = (opts.search ?? "").trim().toLowerCase()
+  const term = prepareSearchQuery(opts.search)
   return suppliers.filter((s) => {
     const matchesSearch =
       !term ||
-      s.name.toLowerCase().includes(term) ||
-      s.country.toLowerCase().includes(term) ||
-      (s.city ?? "").toLowerCase().includes(term) ||
-      (s.paymentTerms ?? "").toLowerCase().includes(term)
+      matchesAnySearchField(
+        [s.name, s.country, s.city, s.paymentTerms],
+        term
+      )
 
     const matchesType =
       !opts.type || opts.type === "all" || s.type === opts.type
