@@ -18,18 +18,28 @@ import {
   AlertTriangle,
   Receipt,
   Banknote,
+  Plus,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Client, CurrencyCode, PaymentMethod } from "@/lib/types"
 import {
-  POS_PAYMENT_METHODS,
-  POS_FRACTIONAL_METHODS,
+  PRIMARY_PAYMENT_METHODS,
+  EXTRA_PAYMENT_METHODS,
   EMPTY_PAYMENT_AMOUNTS,
   buildSalePayments,
+  getPaymentMethodLabel,
   type PosPaymentMode,
 } from "@/lib/constants/payment-methods"
 import { POS_PAYMENT_MODES } from "@/lib/pos-utils"
 import { StatusBadge } from "@/components/ui/status-badge"
+import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useCurrency } from "@/hooks/use-currency"
 import { useT } from "@/i18n/context"
 
@@ -59,12 +69,14 @@ export function PaymentDialog({
   const [mode, setMode] = useState<PosPaymentMode>("comptant")
   const [comptantMethod, setComptantMethod] = useState<PaymentMethod>("CASH")
   const [amounts, setAmounts] = useState(EMPTY_PAYMENT_AMOUNTS())
+  const [splitExtras, setSplitExtras] = useState<PaymentMethod[]>([])
 
   useEffect(() => {
     if (!open) return
     setMode("comptant")
     setComptantMethod("CASH")
     setAmounts({ ...EMPTY_PAYMENT_AMOUNTS(), CASH: String(total) })
+    setSplitExtras([])
   }, [open, total])
 
   useEffect(() => {
@@ -75,6 +87,9 @@ export function PaymentDialog({
     }
     if (mode === "comptant") {
       setAmounts({ ...EMPTY_PAYMENT_AMOUNTS(), [comptantMethod]: String(total) })
+    }
+    if (mode === "fractionne") {
+      setSplitExtras([])
     }
   }, [mode, comptantMethod, open, total])
 
@@ -129,12 +144,34 @@ export function PaymentDialog({
     const remaining = Math.max(
       0,
       total -
-      Object.entries(amounts).reduce((acc, [key, val]) => {
-        if (key === method) return acc
-        return acc + (Number(val) || 0)
-      }, 0)
+        Object.entries(amounts).reduce((acc, [key, val]) => {
+          if (key === method) return acc
+          return acc + (Number(val) || 0)
+        }, 0)
     )
     setAmounts((prev) => ({ ...prev, [method]: String(remaining) }))
+  }
+
+  const splitMethods = useMemo(
+    () => [
+      ...PRIMARY_PAYMENT_METHODS,
+      ...EXTRA_PAYMENT_METHODS.filter((m) => splitExtras.includes(m.id)),
+    ],
+    [splitExtras]
+  )
+
+  const availableSplitExtras = useMemo(
+    () => EXTRA_PAYMENT_METHODS.filter((m) => !splitExtras.includes(m.id)),
+    [splitExtras]
+  )
+
+  const addSplitExtra = (method: PaymentMethod) => {
+    setSplitExtras((prev) => (prev.includes(method) ? prev : [...prev, method]))
+  }
+
+  const removeSplitExtra = (method: PaymentMethod) => {
+    setSplitExtras((prev) => prev.filter((m) => m !== method))
+    setAmounts((prev) => ({ ...prev, [method]: "" }))
   }
 
   return (
@@ -214,23 +251,10 @@ export function PaymentDialog({
               <Label required className="text-xs font-semibold">
                 {t("pos.pay.paymentMode")}
               </Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {POS_PAYMENT_METHODS.map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setComptantMethod(id)}
-                    className={cn(
-                      "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors",
-                      comptantMethod === id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:bg-muted"
-                    )}
-                  >
-                    {t(label)}
-                  </button>
-                ))}
-              </div>
+              <PaymentMethodPicker
+                value={comptantMethod}
+                onValueChange={setComptantMethod}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="comptant-amount" required className="text-xs font-semibold">
                   {t("pos.pay.amountReceived")}
@@ -239,6 +263,7 @@ export function PaymentDialog({
                   id="comptant-amount"
                   type="number"
                   min={0}
+                  inputMode="decimal"
                   className="h-11 rounded-xl font-headline font-bold"
                   value={amounts[comptantMethod]}
                   onChange={(e) =>
@@ -260,23 +285,10 @@ export function PaymentDialog({
               <Label required className="text-xs font-semibold">
                 {t("pos.pay.depositMode")}
               </Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {POS_PAYMENT_METHODS.map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setComptantMethod(id)}
-                    className={cn(
-                      "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors",
-                      comptantMethod === id
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-background hover:bg-muted"
-                    )}
-                  >
-                    {t(label)}
-                  </button>
-                ))}
-              </div>
+              <PaymentMethodPicker
+                value={comptantMethod}
+                onValueChange={setComptantMethod}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="partiel-amount" required className="text-xs font-semibold">
                   {t("pos.pay.amountNow")}
@@ -286,6 +298,7 @@ export function PaymentDialog({
                   type="number"
                   min={1}
                   max={total - 1}
+                  inputMode="decimal"
                   className="h-11 rounded-xl font-bold"
                   value={amounts[comptantMethod]}
                   onChange={(e) =>
@@ -302,7 +315,6 @@ export function PaymentDialog({
               )}
             </div>
           )}
-
 
           {mode === "credit" && (
             <div className="space-y-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
@@ -325,33 +337,75 @@ export function PaymentDialog({
                 {t("pos.pay.splitDesc")}
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {POS_FRACTIONAL_METHODS.map(({ id, label }) => (
-                  <div key={id} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                        {t(label)}
-                      </Label>
-                      <button
-                        type="button"
-                        onClick={() => fillRemaining(id)}
-                        className="text-[10px] font-semibold text-primary hover:underline"
-                      >
-                        {t("pos.pay.balance")}
-                      </button>
+                {splitMethods.map(({ id, label }) => {
+                  const isExtra = splitExtras.includes(id)
+                  return (
+                    <div key={id} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {t(label)}
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => fillRemaining(id)}
+                            className="text-[10px] font-semibold text-primary hover:underline"
+                          >
+                            {t("pos.pay.balance")}
+                          </button>
+                          {isExtra && (
+                            <button
+                              type="button"
+                              onClick={() => removeSplitExtra(id)}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              aria-label={t("payment.removeSplitMethod")}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        inputMode="decimal"
+                        placeholder="0"
+                        className="h-10 rounded-xl font-bold"
+                        value={amounts[id]}
+                        onChange={(e) =>
+                          setAmounts((prev) => ({ ...prev, [id]: e.target.value }))
+                        }
+                      />
                     </div>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      className="h-10 rounded-xl font-bold"
-                      value={amounts[id]}
-                      onChange={(e) =>
-                        setAmounts((prev) => ({ ...prev, [id]: e.target.value }))
-                      }
-                    />
-                  </div>
-                ))}
+                  )
+                })}
               </div>
+              {availableSplitExtras.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-full rounded-xl border-dashed text-xs font-semibold"
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      {t("payment.addSplitMethod")}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                    {availableSplitExtras.map((option) => (
+                      <DropdownMenuItem
+                        key={option.id}
+                        onSelect={() => addSplitExtra(option.id)}
+                        className="text-xs font-medium"
+                      >
+                        {t(getPaymentMethodLabel(option.id))}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               {!hasClient && debtAmount > 0 && (
                 <AlertBlock
                   message={t("pos.pay.partialNeedsClient", { amount: formatAmount(debtAmount) })}
@@ -462,4 +516,3 @@ function AlertBlock({ message }: { message: string }) {
     </div>
   )
 }
-

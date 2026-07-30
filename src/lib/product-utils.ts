@@ -12,6 +12,41 @@ export const PRODUCT_UNITS = [
   { value: "Paquet", label: "Paquet" },
 ] as const
 
+/**
+ * Unités engros / conditionnement — basées sur l’usage réel stock FODOBA
+ * (carton, paquet, sac, pack, casier, bidon…).
+ */
+export const PACKAGING_UNITS = [
+  "Carton",
+  "Paquet",
+  "Sac",
+  "Pack",
+  "Casier",
+  "Bidon",
+  "Boîte",
+  "Sachet",
+  "Flacon",
+  "Tablette",
+  "Cannette",
+  "Rouleau",
+] as const
+
+/**
+ * Unités détail / vente à l’unité — basées sur l’usage réel stock FODOBA.
+ */
+export const RETAIL_UNITS = [
+  "Pièce",
+  "Bidon",
+  "Boîte",
+  "Kg",
+  "Sachet",
+  "Cannette",
+  "Flacon",
+  "Tablette",
+  "Bouteille",
+  "Litre",
+] as const
+
 export type StockFilter = "all" | "low" | "out"
 
 export type ProductDeleteBlocker = "stock" | "movements"

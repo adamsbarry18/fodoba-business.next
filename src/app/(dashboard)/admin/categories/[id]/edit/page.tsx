@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { useRouter, useParams } from "next/navigation"
 import { toast } from "sonner"
@@ -110,24 +110,24 @@ export default function EditCategoryPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("categories.form.parent")}</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(value === "none" ? null : value)}
-                      value={field.value || "none"}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("categories.form.parentPlaceholder")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">{t("categories.form.parentNone")}</SelectItem>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value || "none"}
+                        onValueChange={(value) =>
+                          field.onChange(value === "none" ? null : value)
+                        }
+                        placeholder={t("categories.form.parentPlaceholder")}
+                        searchPlaceholder={t("categories.searchPlaceholder")}
+                        options={[
+                          { value: "none", label: t("categories.form.parentNone") },
+                          ...categories.map((cat) => ({
+                            value: cat.id,
+                            label: cat.name,
+                            keywords: [cat.name, cat.description],
+                          })),
+                        ]}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -4,7 +4,7 @@ import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { PaymentMethod } from "@/lib/types"
+import { PaymentMethod, PaymentMethodSchema } from "@/lib/types"
 import { ExpenseService } from "@/services/expense.service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,7 +35,7 @@ import {
 import { toast } from "sonner"
 import { Loader2, Save, Wallet, AlertTriangle } from "lucide-react"
 import { EXPENSE_CATEGORIES } from "@/lib/expense-utils"
-import { PAYMENT_METHOD_OPTIONS } from "@/lib/constants/payment-methods"
+import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
 import type { UserProfile } from "@/lib/types"
 import { useT } from "@/i18n/context"
 
@@ -70,14 +70,7 @@ export function ExpenseFormDialog({
         amount: z.coerce.number().min(1, t("expenses.form.validation.amountMin")),
         category: z.string().min(1, t("expenses.form.validation.categoryRequired")),
         label: z.string().min(2, t("expenses.form.validation.labelMin")),
-        method: z.enum([
-          "CASH",
-          "ORANGE_MONEY",
-          "MOBILE_MONEY",
-          "CARD",
-          "TRANSFER",
-          "OTHER",
-        ] as const),
+        method: PaymentMethodSchema,
         notes: z.string().optional(),
       }),
     [t]
@@ -205,52 +198,43 @@ export function ExpenseFormDialog({
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>{t("expenses.form.methodLabel")}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-10 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="rounded-xl">
-                          {PAYMENT_METHOD_OPTIONS.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {t(m.label)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("expenses.form.notesLabel")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t("expenses.form.notesPlaceholder")}
-                          className="h-10 rounded-xl"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-[10px]">
-                        {t("expenses.form.notesDesc")}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>{t("expenses.form.methodLabel")}</FormLabel>
+                    <FormControl>
+                      <PaymentMethodPicker
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("expenses.form.notesLabel")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t("expenses.form.notesPlaceholder")}
+                        className="h-10 rounded-xl"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-[10px]">
+                      {t("expenses.form.notesDesc")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <DialogFooter className="flex flex-row justify-end gap-3 border-t bg-muted/20 p-6">

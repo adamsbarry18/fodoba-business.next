@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { StatusBadge } from "@/components/ui/status-badge"
 import {
   ArrowLeft,
@@ -433,21 +434,17 @@ export function PurchaseOrderForm({
                           {t("purchases.form.product")}
                         </Label>
                         <FieldWithAdd entity="product" returnTo={returnPath}>
-                          <Select
+                          <Combobox
                             value={item.productId}
                             onValueChange={(v) => updateItem(index, "productId", v)}
-                          >
-                            <SelectTrigger className="h-10 rounded-xl">
-                              <SelectValue placeholder={t("purchases.form.selectProduct")} />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl">
-                              {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name} ({p.sku})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            placeholder={t("purchases.form.selectProduct")}
+                            searchPlaceholder={t("inventory.searchPlaceholder")}
+                            options={products.map((p) => ({
+                              value: p.id,
+                              label: `${p.name} (${p.sku})`,
+                              keywords: [p.name, p.sku, p.barcode],
+                            }))}
+                          />
                         </FieldWithAdd>
                       </div>
                       <div className="col-span-4 sm:col-span-2 space-y-1.5">
@@ -629,18 +626,17 @@ export function PurchaseOrderForm({
               <div className="space-y-1.5">
                 <Label required>{t("purchases.form.supplier")}</Label>
                 <FieldWithAdd entity="supplier" returnTo={returnPath}>
-                  <Select value={supplierId} onValueChange={setSupplierId}>
-                    <SelectTrigger className="h-10 rounded-xl">
-                      <SelectValue placeholder={t("purchases.form.selectSupplier")} />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {suppliers.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name} - {s.country}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    value={supplierId}
+                    onValueChange={setSupplierId}
+                    placeholder={t("purchases.form.selectSupplier")}
+                    searchPlaceholder={t("suppliers.searchPlaceholder")}
+                    options={suppliers.map((s) => ({
+                      value: s.id,
+                      label: `${s.name} - ${s.country}`,
+                      keywords: [s.name, s.country, s.city],
+                    }))}
+                  />
                 </FieldWithAdd>
                 {selectedSupplier && (
                   <StatusBadge

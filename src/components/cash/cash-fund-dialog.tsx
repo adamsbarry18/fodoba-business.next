@@ -23,24 +23,18 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { toast } from "sonner"
 import { Loader2, Save, ArrowRightLeft, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react"
-import { PAYMENT_METHOD_OPTIONS } from "@/lib/constants/payment-methods"
+import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
 import { type FundOperationType } from "@/lib/cash-session-utils"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { cn } from "@/lib/utils"
+import { PaymentMethodSchema, type PaymentMethod } from "@/lib/types"
 import { useT } from "@/i18n/context"
 
 type CashFundFormValues = {
   type: FundOperationType
-  method: "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY" | "CARD" | "TRANSFER" | "OTHER"
+  method: PaymentMethod
   amount: number
   reason: string
 }
@@ -71,14 +65,7 @@ export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogP
     () =>
       z.object({
         type: z.enum(["IN", "OUT"]),
-        method: z.enum([
-          "CASH",
-          "ORANGE_MONEY",
-          "MOBILE_MONEY",
-          "CARD",
-          "TRANSFER",
-          "OTHER",
-        ]),
+        method: PaymentMethodSchema,
         amount: z.coerce.number().min(1, t("cashFund.validation.amountMin")),
         reason: z.string().min(3, t("cashFund.validation.reasonMin")),
       }),
@@ -184,52 +171,43 @@ export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogP
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>{t("cashFund.cashLine")}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-10 rounded-xl">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="rounded-xl">
-                          {PAYMENT_METHOD_OPTIONS.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {t(m.label)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>{t("cashFund.amount")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="0"
-                          className="h-10 rounded-xl font-headline font-bold"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>{t("cashFund.cashLine")}</FormLabel>
+                    <FormControl>
+                      <PaymentMethodPicker
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>{t("cashFund.amount")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        inputMode="decimal"
+                        placeholder="0"
+                        className="h-10 rounded-xl font-headline font-bold"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

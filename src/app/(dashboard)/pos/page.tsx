@@ -1182,7 +1182,11 @@ export default function POSPage() {
                                           handlePriceTierChange(item.productId, currentTier, "retail")
                                         }
                                       >
-                                        {t("pos.priceTier.retail")}
+                                        {t("pos.priceTier.retailWithUnit", {
+                                          unit:
+                                            product?.unit ||
+                                            t("inventory.form.unitFallback"),
+                                        })}
                                       </button>
                                       <button
                                         type="button"
@@ -1200,12 +1204,22 @@ export default function POSPage() {
                                           )
                                         }
                                       >
-                                        {t("pos.priceTier.wholesale")}
+                                        {t("pos.priceTier.wholesaleWithUnit", {
+                                          unit:
+                                            (product
+                                              ? normalizeProduct(product).packagingUnit
+                                              : "") ||
+                                            t("inventory.form.packagingFallback"),
+                                        })}
                                       </button>
                                     </div>
                                   ) : (
                                     <StatusBadge tone="slate" className="text-[8px]">
-                                      {t("pos.priceTier.retail")}
+                                      {t("pos.priceTier.retailWithUnit", {
+                                        unit:
+                                          product?.unit ||
+                                          t("inventory.form.unitFallback"),
+                                      })}
                                     </StatusBadge>
                                   )}
 
@@ -1261,7 +1275,7 @@ export default function POSPage() {
                                     onFocus={(e) => e.target.select()}
                                     onBlur={() => commitQty(lineKey)}
                                     aria-label={t("pos.quantity")}
-                                    className="h-7 flex-1 border-0 bg-transparent px-0 text-center text-xs font-extrabold shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    className="h-7 flex-1 border-0 bg-transparent px-0 text-center text-xs font-extrabold shadow-none focus-visible:ring-0"
                                   />
                                   <Button
                                     variant="ghost"

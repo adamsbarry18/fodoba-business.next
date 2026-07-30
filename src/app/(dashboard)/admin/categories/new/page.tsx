@@ -17,13 +17,7 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Switch } from "@/components/ui/switch"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -219,26 +213,24 @@ export default function NewCategoryPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("categories.form.parent")}</FormLabel>
-                    <Select
-                      onValueChange={(value) =>
-                        field.onChange(value === "none" ? null : value)
-                      }
-                      value={field.value || "none"}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="h-10 rounded-xl">
-                          <SelectValue placeholder={t("categories.form.parentPlaceholder")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="none">{t("categories.form.parentNone")}</SelectItem>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value || "none"}
+                        onValueChange={(value) =>
+                          field.onChange(value === "none" ? null : value)
+                        }
+                        placeholder={t("categories.form.parentPlaceholder")}
+                        searchPlaceholder={t("categories.searchPlaceholder")}
+                        options={[
+                          { value: "none", label: t("categories.form.parentNone") },
+                          ...categories.map((cat) => ({
+                            value: cat.id,
+                            label: cat.name,
+                            keywords: [cat.name, cat.description],
+                          })),
+                        ]}
+                      />
+                    </FormControl>
                     {parentPath.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 pt-1">
                         <span className="text-[11px] text-muted-foreground">

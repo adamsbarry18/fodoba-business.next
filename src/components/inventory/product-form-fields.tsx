@@ -12,21 +12,16 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldWithAdd } from "@/components/forms/field-with-add"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { computeInitialStockTotal } from "@/lib/product-utils"
-import { Coins, ImageIcon, Scale, Tags, X, Info } from "lucide-react"
+import { computeInitialStockTotal, getRetailUnitsPerPack, PACKAGING_UNITS, RETAIL_UNITS } from "@/lib/product-utils"
+import { Coins, ImageIcon, Scale, Tags, X, Info, Package, ShoppingBag } from "lucide-react"
 import { useT } from "@/i18n/context"
+import { cn } from "@/lib/utils"
 
 type ProductFormFieldsProps = {
   form: UseFormReturn<ProductFormValues>
@@ -67,6 +62,21 @@ export function ProductFormFields({
   const imageUrl = form.watch("imageUrl")
   const packagingUnit = form.watch("packagingUnit")
   const retailUnit = form.watch("unit")
+
+  const hasPackaging =
+    !!packagingUnit?.trim() && (unitsPerPack ?? 1) > 1
+
+  const retailUnitsPerPack = useMemo(
+    () =>
+      getRetailUnitsPerPack({
+        unitsPerPack: unitsPerPack ?? 1,
+        retailQtyFactor: retailQtyFactor ?? 1,
+      }),
+    [unitsPerPack, retailQtyFactor]
+  )
+
+  const packLabel = packagingUnit?.trim() || t("inventory.form.packagingFallback")
+  const unitLabel = retailUnit?.trim() || t("inventory.form.unitFallback")
 
   const computedStock = useMemo(() => {
     if (!showStockFields) return null
@@ -187,20 +197,19 @@ export function ProductFormFields({
                 <FormItem>
                   <FormLabel required>{t("inventory.form.category")}</FormLabel>
                   <FieldWithAdd entity="category" returnTo={categoryReturnPath}>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="h-10 rounded-xl">
-                          <SelectValue placeholder={t("inventory.form.chooseCategory")} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="rounded-xl">
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Combobox
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder={t("inventory.form.chooseCategory")}
+                        searchPlaceholder={t("categories.searchPlaceholder")}
+                        options={categories.map((cat) => ({
+                          value: cat.id,
+                          label: cat.name,
+                          keywords: [cat.name, cat.description],
+                        }))}
+                      />
+                    </FormControl>
                   </FieldWithAdd>
                   <FormMessage />
                 </FormItem>
@@ -277,85 +286,33 @@ export function ProductFormFields({
               <Scale className="h-4 w-4 text-primary" />
               {t("inventory.form.logisticsUnits")}
             </CardTitle>
-            <CardDescription className="text-xs">
-              {t("inventory.form.logisticsUnitsDesc")}
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-4 sm:p-6">
-            <FormField
-              control={form.control}
-              name="packagingUnit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("inventory.form.packagingUnit")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t("inventory.form.packagingUnitPlaceholder")}
-                      className="h-10 rounded-xl"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="unit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>{t("inventory.form.retailUnit")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t("inventory.form.retailUnitPlaceholder")}
-                      className="h-10 rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+            {/* —— Détail —— */}
+            <div className="space-y-3 rounded-xl border bg-muted/10 p-3 sm:p-4">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-primary" />
+                <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                  {t("inventory.form.retailSectionTitle")}
+                </p>
+              </div>
               <FormField
                 control={form.control}
-                name="unitsPerPack"
+                name="unit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>{t("inventory.form.unitsPerPack")}</FormLabel>
+                    <FormLabel required>{t("inventory.form.retailUnit")}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        className="h-10 rounded-xl"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(Math.max(1, Number(e.target.value) || 1))
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="retailQtyFactor"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("inventory.form.retailQtyFactor")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        className="h-10 rounded-xl"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(Math.max(1, Number(e.target.value) || 1))
-                        }
+                      <Combobox
+                        creatable
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        placeholder={t("inventory.form.retailUnitPlaceholder")}
+                        searchPlaceholder={t("inventory.form.retailUnitSearch")}
+                        options={RETAIL_UNITS.map((unit) => ({
+                          value: unit,
+                          label: unit,
+                        }))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -363,88 +320,182 @@ export function ProductFormFields({
                 )}
               />
             </div>
-            <FormDescription className="text-[11px]">
-              {t("inventory.form.unitsPerPackHint")}
-            </FormDescription>
 
-            {showStockFields && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="initialStockPackaging"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("inventory.form.initialStock")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          className="h-10 rounded-xl"
-                          value={field.value ?? 0}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="detailStock"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("inventory.form.detailStock")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          className="h-10 rounded-xl"
-                          value={field.value ?? ""}
-                          onChange={(e) =>
-                            field.onChange(
-                              e.target.value === "" ? undefined : Number(e.target.value)
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-
-            {showStockFields && (
-              <FormDescription className="text-[11px]">
-                {mode === "edit" && activeStoreName
-                  ? t("inventory.form.editStockStoreHint", { store: activeStoreName })
-                  : null}
-                {mode === "edit" && activeStoreName ? " · " : null}
-                {t("inventory.form.initialStockPackagingHint", {
-                  unit: packagingUnit || t("inventory.form.packagingFallback"),
-                })}
-                {" · "}
-                {t("inventory.form.detailStockHint")}
-              </FormDescription>
-            )}
-
-            {showStockFields && computedStock !== null && (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
-                <p className="font-semibold text-primary">
-                  {t("inventory.form.computedStockTitle")}
+            {/* —— Engros / conditionnement —— */}
+            <div className="space-y-3 rounded-xl border bg-amber-500/5 p-3 sm:p-4">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                  {t("inventory.form.wholesaleSectionTitle")}
                 </p>
-                <p className="mt-1 text-muted-foreground">
-                  {t("inventory.form.computedStockValue", {
-                    total: computedStock,
-                    unit: retailUnit || t("inventory.form.unitFallback"),
+              </div>
+
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="packagingUnit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("inventory.form.packagingUnit")}</FormLabel>
+                      <FormControl>
+                        <Combobox
+                          creatable
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                          placeholder={t("inventory.form.packagingUnitPlaceholder")}
+                          searchPlaceholder={t("inventory.form.packagingUnitSearch")}
+                          options={PACKAGING_UNITS.map((unit) => ({
+                            value: unit,
+                            label: unit,
+                          }))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="unitsPerPack"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>{t("inventory.form.unitsPerPack")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            className="h-10 rounded-xl"
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Math.max(1, Number(e.target.value) || 1))
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="retailQtyFactor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("inventory.form.retailQtyFactor")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            inputMode="numeric"
+                            className="h-10 rounded-xl"
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Math.max(1, Number(e.target.value) || 1))
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {!!packagingUnit?.trim() && (
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  {t("inventory.form.packFormula", {
+                    packaging: packLabel,
+                    count: retailUnitsPerPack,
+                    unit: unitLabel,
                   })}
                 </p>
+              )}
+            </div>
+
+            {/* —— Stock —— */}
+            {showStockFields && (
+              <div className="space-y-3 rounded-xl border p-3 sm:p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-foreground">
+                    {t("inventory.form.stockSectionTitle")}
+                  </p>
+                  {mode === "edit" && activeStoreName && (
+                    <p className="text-[11px] text-muted-foreground">{activeStoreName}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="initialStockPackaging"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {hasPackaging
+                            ? t("inventory.form.initialStockWholesale", { unit: packLabel })
+                            : t("inventory.form.initialStock")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            className="h-10 rounded-xl"
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {hasPackaging && (
+                    <FormField
+                      control={form.control}
+                      name="detailStock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t("inventory.form.detailStockLabeled", { unit: unitLabel })}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              placeholder="0"
+                              className="h-10 rounded-xl"
+                              value={field.value ?? ""}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === "" ? undefined : Number(e.target.value)
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+
+                {computedStock !== null && (
+                  <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+                    {t("inventory.form.computedStockTitle")}:{" "}
+                    {t("inventory.form.computedStockValue", {
+                      total: computedStock,
+                      unit: unitLabel,
+                    })}
+                  </p>
+                )}
               </div>
             )}
 
             {mode === "edit" && !activeStoreName && (
-              <div className="rounded-xl border border-dashed bg-muted/10 p-4 text-xs text-muted-foreground">
+              <div className="rounded-xl border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <p>{t("inventory.form.selectStoreForStock")}</p>
@@ -453,10 +504,10 @@ export function ProductFormFields({
             )}
 
             {mode === "edit" && activeStoreName && !canAdjustStock && (
-              <div className="rounded-xl border border-dashed bg-muted/10 p-4 text-xs text-muted-foreground">
+              <div className="rounded-xl border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <p>{t("inventory.form.stockManagedOnDetail")}</p>
                     {productId && (
                       <Button variant="link" asChild className="h-auto p-0 text-xs font-semibold">
@@ -497,7 +548,6 @@ export function ProductFormFields({
             <Coins className="h-4 w-4 text-primary" />
             {t("inventory.form.pricing")}
           </CardTitle>
-          <CardDescription className="text-xs">{t("inventory.form.pricingDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-4 sm:p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -506,33 +556,14 @@ export function ProductFormFields({
               name="purchasePriceRef"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("inventory.form.purchasePrice")}</FormLabel>
+                  <FormLabel>
+                    {t("inventory.form.purchasePricePerUnit", { unit: unitLabel })}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       min={0}
-                      className="h-10 rounded-xl"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormDescription className="text-[10px]">
-                    {t("inventory.form.unitCostHint")}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="wholesalePriceFCFA"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("inventory.form.wholesalePrice")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
+                      inputMode="decimal"
                       className="h-10 rounded-xl"
                       {...field}
                       onChange={(e) => field.onChange(Number(e.target.value))}
@@ -546,13 +577,49 @@ export function ProductFormFields({
               control={form.control}
               name="sellingPriceFCFA"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>{t("inventory.form.retailPrice")}</FormLabel>
+                <FormItem className="rounded-xl border border-primary/15 bg-primary/5 p-3">
+                  <FormLabel required className="flex items-center gap-1.5">
+                    <ShoppingBag className="h-3.5 w-3.5 text-primary" />
+                    {t("inventory.form.retailPricePerUnit", { unit: unitLabel })}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       min={0}
+                      inputMode="decimal"
                       className="h-10 rounded-xl font-headline font-bold"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="wholesalePriceFCFA"
+              render={({ field }) => (
+                <FormItem
+                  className={cn(
+                    "rounded-xl border p-3",
+                    hasPackaging
+                      ? "border-amber-500/20 bg-amber-500/5"
+                      : "border-dashed bg-muted/10 opacity-80"
+                  )}
+                >
+                  <FormLabel className="flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
+                    {hasPackaging
+                      ? t("inventory.form.wholesalePricePerUnit", { unit: packLabel })
+                      : t("inventory.form.wholesalePrice")}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      inputMode="decimal"
+                      className="h-10 rounded-xl"
                       {...field}
                       onChange={(e) => field.onChange(Number(e.target.value))}
                     />

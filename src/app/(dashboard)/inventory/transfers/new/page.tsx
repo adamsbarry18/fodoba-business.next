@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { toast } from "sonner"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
@@ -113,7 +114,7 @@ export default function NewTransferPage() {
     const init = async () => {
       try {
         const [prodResult, storeResult] = await Promise.all([
-          ProductService.listProducts(),
+          ProductService.listProducts({ active: true }, 200),
           StoreService.listStores(100),
         ])
         if (cancelled) return
@@ -127,7 +128,7 @@ export default function NewTransferPage() {
             successMessage: t(ENTITY_ROUTES.product.createdMessageKey),
             errorMessage: t("hooks.returnSelectionError"),
             reload: async () => {
-              const result = await ProductService.listProducts()
+              const result = await ProductService.listProducts({ active: true }, 200)
               setProducts(result.products)
             },
           }
@@ -293,22 +294,19 @@ export default function NewTransferPage() {
                       <FormItem>
                         <FormLabel required>{t("stockTransfer.product")}</FormLabel>
                         <FieldWithAdd entity="product" returnTo="/inventory/transfers/new">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="h-10 rounded-xl">
-                                <SelectValue
-                                  placeholder={t("stockTransfer.selectProductPlaceholder")}
-                                />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="rounded-xl max-h-64">
-                              {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name} ({p.sku})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Combobox
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              placeholder={t("stockTransfer.selectProductPlaceholder")}
+                              searchPlaceholder={t("inventory.searchPlaceholder")}
+                              options={products.map((p) => ({
+                                value: p.id,
+                                label: `${p.name} (${p.sku})`,
+                                keywords: [p.name, p.sku, p.barcode],
+                              }))}
+                            />
+                          </FormControl>
                         </FieldWithAdd>
                         <FormMessage />
                       </FormItem>

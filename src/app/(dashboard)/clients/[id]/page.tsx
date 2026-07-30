@@ -34,14 +34,12 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useCurrency } from "@/hooks/use-currency"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { SaleTicketButton } from "@/components/sales/sale-ticket-button"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { usePaymentMethodLabel } from "@/hooks/use-payment-method-label"
-import { POS_PAYMENT_METHODS } from "@/lib/constants/payment-methods"
+import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
 import { ClientDeleteDialog } from "@/components/clients/client-delete-dialog"
@@ -74,7 +72,6 @@ export default function ClientDetailsPage() {
   const [amount, setAmount] = useState<string>("")
   const [method, setMethod] = useState<ClientPayment["method"]>("CASH")
   const [notes, setNotes] = useState("")
-  const paymentMethodLabel = usePaymentMethodLabel()
 
   const loadData = useCallback(async () => {
     const clientId = params.id as string
@@ -224,18 +221,7 @@ export default function ClientDetailsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label required>{t("clients.detail.paymentMethod")}</Label>
-                  <Select onValueChange={(v: ClientPayment["method"]) => setMethod(v)} value={method}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POS_PAYMENT_METHODS.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {paymentMethodLabel(m.id)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <PaymentMethodPicker value={method} onValueChange={setMethod} />
                 </div>
                 <div className="space-y-2">
                   <Label>{t("clients.detail.notes")}</Label>
@@ -269,47 +255,47 @@ export default function ClientDetailsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-muted/5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="min-w-0 bg-muted/5">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground">
               {t("clients.detail.profileType")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent className="flex flex-wrap gap-2 p-4 pt-0">
             <StatusBadge preset="clientType" value={client.type} className="text-sm font-bold" />
-            <StatusBadge preset="clientStatus" value={client.status} className="mt-2 text-[10px]" />
+            <StatusBadge preset="clientStatus" value={client.status} className="text-[10px]" />
           </CardContent>
         </Card>
 
-        <Card className={isOverLimit ? "border-destructive bg-destructive/5" : "bg-muted/5"}>
+        <Card className={`min-w-0 ${isOverLimit ? "border-destructive bg-destructive/5" : "bg-muted/5"}`}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground">
               {t("clients.detail.outstanding")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent className="min-w-0 p-4 pt-0">
             <div
-              className={`text-xl font-headline font-bold ${client.currentDebt > 0 ? "text-destructive" : ""}`}
+              className={`truncate text-xl font-headline font-bold ${client.currentDebt > 0 ? "text-destructive" : ""}`}
             >
               {formatAmount(client.currentDebt)}
             </div>
             {isOverLimit && (
               <div className="flex items-center text-[10px] text-destructive mt-1 font-bold">
-                <AlertTriangle className="w-3 h-3 mr-1" /> {t("clients.detail.overLimit")}
+                <AlertTriangle className="w-3 h-3 mr-1 shrink-0" /> {t("clients.detail.overLimit")}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-muted/5">
+        <Card className="min-w-0 bg-muted/5">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground">
               {t("clients.detail.creditCeiling")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-xl font-headline font-bold">
+          <CardContent className="min-w-0 p-4 pt-0">
+            <div className="truncate text-xl font-headline font-bold">
               {formatAmount(client.creditCeiling)}
             </div>
             <div className="text-[10px] text-muted-foreground mt-1">
@@ -318,14 +304,14 @@ export default function ClientDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-muted/5">
+        <Card className="min-w-0 bg-muted/5">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs uppercase text-muted-foreground">
               {t("clients.detail.lastActivity")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-sm font-medium">
+          <CardContent className="min-w-0 p-4 pt-0">
+            <div className="truncate text-sm font-medium">
               {payments.length > 0
                 ? format(payments[0].timestamp.toDate(), "dd MMM yyyy", { locale: dateLocale })
                 : t("clients.detail.none")}
@@ -385,15 +371,26 @@ export default function ClientDetailsPage() {
                           <div className="font-headline font-bold">
                             {formatAmount(sale.total)}
                           </div>
-                          <StatusBadge
-                            preset="paymentMethod"
-                            value={sale.debtAmount > 0 ? "CREDIT" : "CASH"}
-                            className="text-[10px]"
-                          >
-                            {sale.debtAmount > 0
-                              ? t("clients.detail.credit")
-                              : t("clients.detail.paid")}
-                          </StatusBadge>
+                          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+                            {sale.debtAmount > 0 && (
+                              <StatusBadge
+                                preset="paymentMethod"
+                                value="CREDIT"
+                                className="text-[10px]"
+                              >
+                                {t("clients.detail.credit")}
+                              </StatusBadge>
+                            )}
+                            {(sale.amountPaid > 0 || sale.debtAmount <= 0) && (
+                              <StatusBadge
+                                preset="paymentMethod"
+                                value="CASH"
+                                className="text-[10px]"
+                              >
+                                {t("clients.detail.paid")}
+                              </StatusBadge>
+                            )}
+                          </div>
                         </div>
                         <SaleTicketButton sale={sale} stores={availableStores} />
                       </div>

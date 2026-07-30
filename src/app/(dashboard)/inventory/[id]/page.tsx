@@ -600,7 +600,7 @@ export default function ProductDetailsPage() {
                         }}
                         onFocus={(e) => e.target.select()}
                         disabled={adjusting}
-                        className="h-10 flex-1 border-0 bg-transparent text-center font-headline text-lg font-bold shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="h-10 flex-1 border-0 bg-transparent text-center font-headline text-lg font-bold shadow-none focus-visible:ring-0"
                       />
                       <Button
                         type="button"

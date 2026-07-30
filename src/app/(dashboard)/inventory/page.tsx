@@ -53,6 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { BarcodeScanField } from "@/components/barcode/barcode-scan-field"
 import {
   countLowStock,
@@ -276,59 +277,59 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900/50">
               <Boxes className="h-5 w-5 text-slate-600 dark:text-slate-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("inventory.statTotal")}
               </p>
-              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="truncate text-2xl font-bold">{stats.total}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("inventory.statLowStock")}
               </p>
-              <p className="text-2xl font-bold">{stats.lowStock}</p>
+              <p className="truncate text-2xl font-bold">{stats.lowStock}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40">
               <TrendingDown className="h-5 w-5 text-rose-600 dark:text-rose-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("inventory.statOutOfStock")}
               </p>
-              <p className="text-2xl font-bold">{stats.outOfStock}</p>
+              <p className="truncate text-2xl font-bold">{stats.outOfStock}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-2 rounded-2xl border bg-card shadow-sm lg:col-span-1">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
               <Package className="h-5 w-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("inventory.statValuation")}
               </p>
-              <p className="text-sm font-bold">
+              <p className="truncate text-sm font-bold">
                 {formatAmount(stats.valuation)}
               </p>
             </div>
@@ -347,19 +348,20 @@ export default function InventoryPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="h-10 rounded-xl">
-              <SelectValue placeholder={t("inventory.filterCategory")} />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="all">{t("inventory.filterCategoryAll")}</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={filterCategory}
+            onValueChange={setFilterCategory}
+            placeholder={t("inventory.filterCategory")}
+            searchPlaceholder={t("categories.searchPlaceholder")}
+            options={[
+              { value: "all", label: t("inventory.filterCategoryAll") },
+              ...categories.map((cat) => ({
+                value: cat.id,
+                label: cat.name,
+                keywords: [cat.name, cat.description],
+              })),
+            ]}
+          />
           <Select
             value={stockFilter}
             onValueChange={(v) => setStockFilter(v as StockFilter)}

@@ -233,67 +233,67 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
               <TrendingUp className="h-5 w-5 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("dashboard.storeRevenue")}
               </p>
-              <p className="text-sm font-bold">{formatAmount(stats.periodRevenue)}</p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="truncate text-sm font-bold">{formatAmount(stats.periodRevenue)}</p>
+              <p className="truncate text-[10px] text-muted-foreground">
                 {t("dashboard.salesCount", { count: stats.salesCount })}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40">
               <CreditCard className="h-5 w-5 text-rose-600 dark:text-rose-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("dashboard.clientDebts")}
               </p>
-              <p className="text-sm font-bold text-destructive">
+              <p className="truncate text-sm font-bold text-destructive">
                 {formatAmount(stats.totalClientDebt)}
               </p>
-              <p className="text-[10px] text-muted-foreground">{t("common.globalNetwork")}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{t("common.globalNetwork")}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
               <Truck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("dashboard.supplierDebts")}
               </p>
-              <p className="text-sm font-bold">{formatAmount(stats.totalSupplierDebt)}</p>
-              <p className="text-[10px] text-muted-foreground">{t("common.globalFodoba")}</p>
+              <p className="truncate text-sm font-bold">{formatAmount(stats.totalSupplierDebt)}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{t("common.globalFodoba")}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-2 rounded-2xl border bg-card shadow-sm lg:col-span-1">
-          <CardContent className="flex items-center gap-4 p-4">
+        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40">
               <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("dashboard.cashRegister")}
               </p>
-              <p className="text-sm font-bold">{formatAmount(stats.cashCash)}</p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="truncate text-sm font-bold">{formatAmount(stats.cashCash)}</p>
+              <p className="truncate text-[10px] text-muted-foreground">
                 {t("dashboard.totalCash", { amount: formatAmount(stats.cashTotal) })}
               </p>
             </div>

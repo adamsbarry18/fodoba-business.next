@@ -6,25 +6,48 @@ const nestedFrMessages = nestMessages(frMessages)
 
 export type PosPaymentMode = "comptant" | "partiel" | "credit" | "fractionne"
 
-export const PAYMENT_METHOD_OPTIONS: {
+export type PaymentMethodOption = {
   id: PaymentMethod
   label: string
-}[] = [
+}
+
+/** Trois moyens principaux affichés par défaut. */
+export const PRIMARY_PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: "CASH", label: "payment.cash" },
   { id: "ORANGE_MONEY", label: "payment.orangeMoney" },
-  { id: "MOBILE_MONEY", label: "payment.mobileMoney" },
   { id: "CARD", label: "payment.card" },
+]
+
+/** Moyens additionnels (ajoutables dynamiquement). */
+export const EXTRA_PAYMENT_METHODS: PaymentMethodOption[] = [
+  { id: "MOBILE_MONEY", label: "payment.mobileMoney" },
   { id: "TRANSFER", label: "payment.transfer" },
   { id: "OTHER", label: "payment.other" },
 ]
 
-/** Modes standards (comptant, caisse, dépenses). */
+export const PAYMENT_METHOD_OPTIONS: PaymentMethodOption[] = [
+  ...PRIMARY_PAYMENT_METHODS,
+  ...EXTRA_PAYMENT_METHODS,
+]
+
+/** Alias historique : moyens standards (principaux + extras, hors UI progressive). */
 export const POS_PAYMENT_METHODS = PAYMENT_METHOD_OPTIONS.filter((m) => m.id !== "OTHER")
 
-/** Modes du paiement fractionné (inclut Autres). */
+/** Modes du paiement fractionné (tous les moyens). */
 export const POS_FRACTIONAL_METHODS = PAYMENT_METHOD_OPTIONS
 
 export const PAYMENT_METHOD_IDS = PAYMENT_METHOD_OPTIONS.map((m) => m.id)
+
+export const PRIMARY_PAYMENT_METHOD_IDS = PRIMARY_PAYMENT_METHODS.map((m) => m.id)
+export const EXTRA_PAYMENT_METHOD_IDS = EXTRA_PAYMENT_METHODS.map((m) => m.id)
+
+export function isPrimaryPaymentMethod(method: PaymentMethod): boolean {
+  return PRIMARY_PAYMENT_METHOD_IDS.includes(method)
+}
+
+export function isExtraPaymentMethod(method: PaymentMethod): boolean {
+  return EXTRA_PAYMENT_METHOD_IDS.includes(method)
+}
 
 /** Retourne la clé i18n du mode de paiement (à passer à `t()`). */
 export function getPaymentMethodLabel(method: string): string {
@@ -63,7 +86,7 @@ export function buildSalePayments(
     return { payments, debtAmount: Math.max(0, total - paid) }
   }
 
-  const methodList = mode === "fractionne" ? POS_FRACTIONAL_METHODS : POS_PAYMENT_METHODS
+  const methodList = mode === "fractionne" ? POS_FRACTIONAL_METHODS : PAYMENT_METHOD_OPTIONS
 
   const entries =
     mode === "comptant"

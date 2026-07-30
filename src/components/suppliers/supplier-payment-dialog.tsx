@@ -11,16 +11,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Loader2, Wallet } from "lucide-react"
 import type { Supplier, SupplierPayment } from "@/lib/types"
-import { POS_PAYMENT_METHODS } from "@/lib/constants/payment-methods"
+import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
 import { useT } from "@/i18n/context"
 import { useCurrency } from "@/hooks/use-currency"
 
@@ -93,21 +86,10 @@ export function SupplierPaymentDialog({
           </div>
           <div className="space-y-1.5">
             <Label required>{t("suppliers.payment.method")}</Label>
-            <Select
+            <PaymentMethodPicker
               value={method}
               onValueChange={(v) => setMethod(v as SupplierPayment["method"])}
-            >
-              <SelectTrigger className="h-10 rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {POS_PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {t(m.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </div>
           <div className="space-y-1.5">
             <Label>{t("suppliers.payment.notes")}</Label>

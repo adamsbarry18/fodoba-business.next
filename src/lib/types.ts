@@ -158,11 +158,22 @@ export const ClientSchema = z.object({
 
 export type Client = z.infer<typeof ClientSchema>;
 
+export const PaymentMethodSchema = z.enum([
+  "CASH",
+  "ORANGE_MONEY",
+  "MOBILE_MONEY",
+  "CARD",
+  "TRANSFER",
+  "OTHER",
+])
+
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>
+
 export const ClientPaymentSchema = z.object({
   id: z.string(),
   clientId: z.string(),
   amount: z.number(),
-  method: z.enum(["CASH", "MOBILE_MONEY", "CARD", "TRANSFER"]),
+  method: PaymentMethodSchema,
   timestamp: z.any(),
   storeId: z.string(),
   performedBy: z.string(),
@@ -189,7 +200,7 @@ export const SupplierPaymentSchema = z.object({
   id: z.string(),
   supplierId: z.string(),
   amount: z.number(),
-  method: z.enum(["CASH", "MOBILE_MONEY", "CARD", "TRANSFER", "ORANGE_MONEY"]),
+  method: PaymentMethodSchema,
   timestamp: z.any(),
   storeId: z.string(),
   performedBy: z.string(),
@@ -245,8 +256,6 @@ export const PurchaseSchema = z.object({
 });
 
 export type Purchase = z.infer<typeof PurchaseSchema>;
-
-export type PaymentMethod = "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY" | "CARD" | "TRANSFER" | "OTHER";
 
 export type PriceTier = "retail" | "wholesale";
 
