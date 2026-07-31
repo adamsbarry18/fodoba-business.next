@@ -135,55 +135,111 @@ export const ClientService = {
   },
 
   async recordPayment(params: {
-    clientId: string,
-    amount: number,
-    method: ClientPayment["method"],
-    storeId: string,
-    user: UserProfile,
+    clientId: string
+    amount: number
+    method: ClientPayment["method"]
+    storeId: string
+    user: UserProfile
     notes?: string
+    saleId?: string
   }) {
-    const { clientId, amount, method, storeId, user, notes } = params;
-    
+    const { clientId, amount, method, storeId, user, notes, saleId } = params;
+
+    if (!amount || amount <= 0) {
+      throw new Error("Montant invalide");
+    }
+
     const session = await CashService.getActiveSession(storeId);
     if (!session) throw new Error("Veuillez ouvrir la caisse pour enregistrer un remboursement.");
 
     return await runTransaction(db, async (transaction) => {
       const clientRef = doc(db, COLLECTION_NAME, clientId);
       const clientSnap = await transaction.get(clientRef);
-      
+
       if (!clientSnap.exists()) throw new Error("Client introuvable");
-      
+
       const client = clientSnap.data() as Client;
-      const newDebt = Math.max(0, client.currentDebt - amount);
-      
+      if (client.currentDebt <= 0) {
+        throw new Error("Ce client n'a aucune dette à rembourser.");
+      }
+
+      let saleRef = saleId ? doc(db, SALES_COLLECTION, saleId) : null;
+      let sale: Sale | null = null;
+
+      if (saleRef) {
+        const saleSnap = await transaction.get(saleRef);
+        if (!saleSnap.exists()) throw new Error("Facture introuvable");
+        sale = saleSnap.data() as Sale;
+
+        if (sale.clientId !== clientId) {
+          throw new Error("Cette facture n'appartient pas à ce client.");
+        }
+        if (sale.storeId !== storeId) {
+          throw new Error("Activez la boutique de la facture pour enregistrer le remboursement.");
+        }
+        if (sale.status !== "COMPLETED") {
+          throw new Error("Seule une facture terminée peut être remboursée.");
+        }
+        if (sale.debtAmount <= 0) {
+          throw new Error("Cette facture est déjà soldée.");
+        }
+      }
+
+      const maxPayable = sale
+        ? Math.min(amount, sale.debtAmount, client.currentDebt)
+        : Math.min(amount, client.currentDebt);
+
+      if (maxPayable <= 0) {
+        throw new Error("Montant invalide pour ce remboursement.");
+      }
+
+      const newDebt = Math.max(0, client.currentDebt - maxPayable);
       transaction.update(clientRef, { currentDebt: newDebt });
-      
+
+      if (sale && saleRef) {
+        const nextDebtAmount = Math.max(0, sale.debtAmount - maxPayable);
+        const nextAmountPaid = (sale.amountPaid || 0) + maxPayable;
+        const nextPayments = [
+          ...(sale.payments || []),
+          { method, amount: maxPayable },
+        ];
+        transaction.update(saleRef, {
+          debtAmount: nextDebtAmount,
+          amountPaid: nextAmountPaid,
+          payments: nextPayments,
+        });
+      }
+
       const paymentRef = doc(collection(db, PAYMENTS_COLLECTION));
-      const payment: ClientPayment = {
+      const payment = stripUndefined({
         id: paymentRef.id,
         clientId,
-        amount,
+        amount: maxPayable,
         method,
         timestamp: serverTimestamp(),
         storeId,
         performedBy: user.uid,
-        notes: notes || ""
-      };
-      
+        notes: notes || "",
+        ...(saleId ? { saleId } : {}),
+      }) as ClientPayment;
+
       transaction.set(paymentRef, payment);
 
+      const saleRefLabel = saleId ? saleId.slice(-6).toUpperCase() : null;
       await CashService.recordMovement(transaction, {
         sessionId: session.id,
         storeId,
         type: "IN",
         source: "CLIENT_PAYMENT",
-        amount,
+        amount: maxPayable,
         method,
         user,
         relatedDocId: paymentRef.id,
-        description: `Remboursement: ${client.name}`
+        description: saleRefLabel
+          ? `Remboursement facture #${saleRefLabel}: ${client.name}`
+          : `Remboursement: ${client.name}`,
       });
-      
+
       return payment;
     });
   },

@@ -178,6 +178,8 @@ export const ClientPaymentSchema = z.object({
   storeId: z.string(),
   performedBy: z.string(),
   notes: z.string().optional(),
+  /** Facture (vente) concernée si remboursement ciblé */
+  saleId: z.string().optional(),
 });
 
 export type ClientPayment = z.infer<typeof ClientPaymentSchema>;

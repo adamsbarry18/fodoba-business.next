@@ -61,6 +61,7 @@ export default function ClientDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [paymentTargetSale, setPaymentTargetSale] = useState<Sale | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("history")
 
@@ -73,6 +74,40 @@ export default function ClientDetailsPage() {
   const [amount, setAmount] = useState<string>("")
   const [method, setMethod] = useState<ClientPayment["method"]>("CASH")
   const [notes, setNotes] = useState("")
+
+  const openGlobalPayment = () => {
+    setPaymentTargetSale(null)
+    setAmount(client?.currentDebt ? String(client.currentDebt) : "")
+    setNotes("")
+    setMethod("CASH")
+    setPaymentDialogOpen(true)
+  }
+
+  const openInvoicePayment = (sale: Sale) => {
+    if (!activeStore) {
+      toast.error(t("clients.detail.needActiveStore"))
+      return
+    }
+    if (sale.storeId !== activeStore.id) {
+      toast.error(t("clients.detail.wrongStoreForInvoice"))
+      return
+    }
+    setPaymentTargetSale(sale)
+    setAmount(String(sale.debtAmount))
+    setNotes("")
+    setMethod("CASH")
+    setPaymentDialogOpen(true)
+  }
+
+  const closePaymentDialog = (open: boolean) => {
+    setPaymentDialogOpen(open)
+    if (!open) {
+      setPaymentTargetSale(null)
+      setAmount("")
+      setNotes("")
+      setMethod("CASH")
+    }
+  }
 
   const loadData = useCallback(async () => {
     const clientId = params.id as string
@@ -125,30 +160,57 @@ export default function ClientDetailsPage() {
 
   useEffect(() => {
     if (searchParams.get("action") === "payment" && client && client.currentDebt > 0) {
+      setPaymentTargetSale(null)
+      setAmount(String(client.currentDebt))
       setPaymentDialogOpen(true)
     }
   }, [searchParams, client])
 
   const handlePayment = async () => {
-    if (!amount || Number(amount) <= 0) return toast.error(t("clients.detail.invalidAmount"))
-    if (!activeStore || !userProfile) return
+    const parsed = Number(amount)
+    if (!parsed || parsed <= 0) return toast.error(t("clients.detail.invalidAmount"))
+    if (!activeStore || !userProfile || !client) return
+
+    const maxAmount = paymentTargetSale
+      ? Math.min(paymentTargetSale.debtAmount, client.currentDebt)
+      : client.currentDebt
+
+    if (parsed > maxAmount) {
+      toast.error(
+        t("clients.detail.amountExceedsDebt", { amount: formatAmount(maxAmount) })
+      )
+      return
+    }
+
+    if (paymentTargetSale && paymentTargetSale.storeId !== activeStore.id) {
+      toast.error(t("clients.detail.wrongStoreForInvoice"))
+      return
+    }
+
     setPaymentLoading(true)
     try {
       await ClientService.recordPayment({
-        clientId: client!.id,
-        amount: Number(amount),
+        clientId: client.id,
+        amount: parsed,
         method,
         storeId: activeStore.id,
         user: userProfile,
         notes,
+        saleId: paymentTargetSale?.id,
       })
-      toast.success(t("clients.detail.paymentSuccess"))
-      setAmount("")
-      setNotes("")
-      setPaymentDialogOpen(false)
+      toast.success(
+        paymentTargetSale
+          ? t("clients.detail.invoicePaymentSuccess", {
+              ref: paymentTargetSale.id.slice(-6).toUpperCase(),
+            })
+          : t("clients.detail.paymentSuccess")
+      )
+      closePaymentDialog(false)
       loadData()
-    } catch {
-      toast.error(t("clients.detail.paymentError"))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t("clients.detail.paymentError")
+      )
     } finally {
       setPaymentLoading(false)
     }
@@ -192,23 +254,42 @@ export default function ClientDetailsPage() {
               <Edit className="w-4 h-4 mr-2" /> {t("clients.detail.edit")}
             </Link>
           </Button>
-          <Button onClick={() => setPaymentDialogOpen(true)}>
+          <Button onClick={openGlobalPayment} disabled={client.currentDebt <= 0}>
             <PlusCircle className="w-4 h-4 mr-2" /> {t("clients.detail.payment")}
           </Button>
-          <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-            <DialogContent>
+          <Dialog open={paymentDialogOpen} onOpenChange={closePaymentDialog}>
+            <DialogContent className="rounded-2xl sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>{t("clients.detail.paymentTitle")}</DialogTitle>
+                <DialogTitle>
+                  {paymentTargetSale
+                    ? t("clients.detail.invoicePaymentTitle", {
+                        ref: paymentTargetSale.id.slice(-6).toUpperCase(),
+                      })
+                    : t("clients.detail.paymentTitle")}
+                </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="bg-muted/30 p-4 rounded-lg flex items-center justify-between border">
+              <div className="space-y-4 py-2">
+                <div className="flex items-center justify-between rounded-xl border bg-muted/30 p-4">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase font-bold">
-                      {t("clients.detail.totalDebt")}
+                    <p className="text-xs font-bold uppercase text-muted-foreground">
+                      {paymentTargetSale
+                        ? t("clients.detail.invoiceDebt")
+                        : t("clients.detail.totalDebt")}
                     </p>
-                    <p className="text-2xl font-headline font-bold text-destructive">
-                      {formatAmount(client.currentDebt)}
+                    <p className="font-headline text-2xl font-bold text-destructive">
+                      {formatAmount(
+                        paymentTargetSale
+                          ? paymentTargetSale.debtAmount
+                          : client.currentDebt
+                      )}
                     </p>
+                    {paymentTargetSale && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {t("clients.detail.clientDebtHint", {
+                          amount: formatAmount(client.currentDebt),
+                        })}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -236,9 +317,9 @@ export default function ClientDetailsPage() {
               <DialogFooter>
                 <Button onClick={handlePayment} disabled={paymentLoading}>
                   {paymentLoading ? (
-                    <Loader2 className="animate-spin mr-2" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Wallet className="mr-2" />
+                    <Wallet className="mr-2 h-4 w-4" />
                   )}
                   {t("clients.detail.validatePayment")}
                 </Button>
@@ -350,12 +431,18 @@ export default function ClientDetailsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {sales.map((sale) => (
+                  {sales.map((sale) => {
+                    const canRepayInvoice =
+                      sale.status === "COMPLETED" &&
+                      sale.debtAmount > 0 &&
+                      client.currentDebt > 0
+
+                    return (
                     <div
                       key={sale.id}
-                      className="flex items-center justify-between rounded-xl border p-3"
+                      className="flex items-center justify-between gap-3 rounded-xl border p-3"
                     >
-                      <div className="flex flex-col">
+                      <div className="flex min-w-0 flex-col">
                         <span className="font-bold">
                           {t("clients.detail.invoice", {
                             ref: sale.id.slice(-6).toUpperCase(),
@@ -366,14 +453,21 @@ export default function ClientDetailsPage() {
                             locale: dateLocale,
                           })}
                         </span>
+                        {canRepayInvoice && (
+                          <span className="mt-0.5 text-[10px] font-medium text-destructive">
+                            {t("clients.detail.invoiceRemaining", {
+                              amount: formatAmount(sale.debtAmount),
+                            })}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex shrink-0 items-center gap-2">
                         <div className="text-right">
                           <div className="font-headline font-bold">
                             {formatAmount(sale.total)}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-                            {sale.debtAmount > 0 && (
+                            {sale.status === "COMPLETED" && sale.debtAmount > 0 && (
                               <StatusBadge
                                 preset="paymentMethod"
                                 value="CREDIT"
@@ -382,7 +476,8 @@ export default function ClientDetailsPage() {
                                 {t("clients.detail.credit")}
                               </StatusBadge>
                             )}
-                            {(sale.amountPaid > 0 || sale.debtAmount <= 0) && (
+                            {(sale.amountPaid > 0 ||
+                              (sale.status === "COMPLETED" && sale.debtAmount <= 0)) && (
                               <StatusBadge
                                 preset="paymentMethod"
                                 value="CASH"
@@ -391,12 +486,33 @@ export default function ClientDetailsPage() {
                                 {t("clients.detail.paid")}
                               </StatusBadge>
                             )}
+                            {sale.status !== "COMPLETED" && (
+                              <StatusBadge
+                                preset="saleStatus"
+                                value={sale.status}
+                                className="text-[10px]"
+                              />
+                            )}
                           </div>
                         </div>
+                        {canRepayInvoice && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg text-xs font-semibold"
+                            onClick={() => openInvoicePayment(sale)}
+                            title={t("clients.detail.repayInvoice")}
+                          >
+                            <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                            {t("clients.detail.repayInvoice")}
+                          </Button>
+                        )}
                         <SaleTicketButton sale={sale} stores={availableStores} />
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
@@ -434,6 +550,13 @@ export default function ClientDetailsPage() {
                               locale: dateLocale,
                             })}
                           </p>
+                          {p.saleId && (
+                            <p className="text-[10px] font-medium text-muted-foreground">
+                              {t("clients.detail.paymentForInvoice", {
+                                ref: p.saleId.slice(-6).toUpperCase(),
+                              })}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
