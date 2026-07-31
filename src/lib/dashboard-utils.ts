@@ -1,4 +1,5 @@
 import type { Sale, Client, Supplier, CashSession } from "@/lib/types"
+import { isSaleCountedInRevenue } from "@/lib/sale-utils"
 import {
   format,
   startOfDay,
@@ -52,7 +53,11 @@ export function filterSalesByRange(
   now = new Date()
 ): Sale[] {
   const interval = getRangeInterval(timeRange, now)
-  return sales.filter((s) => isWithinInterval(toSaleDate(s.timestamp), interval))
+  return sales.filter(
+    (s) =>
+      isSaleCountedInRevenue(s) &&
+      isWithinInterval(toSaleDate(s.timestamp), interval)
+  )
 }
 
 import type { Locale as DateFnsLocale } from "date-fns"
@@ -65,10 +70,12 @@ export function buildDashboardChartData(
 ): { name: string; sales: number }[] {
   const interval = getRangeInterval(timeRange, now)
 
+  const counted = sales.filter(isSaleCountedInRevenue)
+
   if (timeRange === "12m" || timeRange === "3m") {
     const months = eachMonthOfInterval(interval)
     return months.map((m) => {
-      const monthSales = sales
+      const monthSales = counted
         .filter((s) => format(toSaleDate(s.timestamp), "yyyy-MM") === format(m, "yyyy-MM"))
         .reduce((acc, s) => acc + s.total, 0)
       return { name: format(m, "MMM", { locale: dateLocale }), sales: monthSales }
@@ -78,7 +85,7 @@ export function buildDashboardChartData(
   const daysCount = timeRange === "24h" ? 1 : timeRange === "7d" ? 7 : 30
   return Array.from({ length: daysCount }, (_, i) => {
     const date = subDays(now, daysCount - 1 - i)
-    const daySales = sales
+    const daySales = counted
       .filter(
         (s) => format(toSaleDate(s.timestamp), "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
       )

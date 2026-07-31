@@ -4,6 +4,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { ClientService } from "@/services/client.service"
 import { Client, ClientPayment, Sale } from "@/lib/types"
+import { isSaleCountedInRevenue } from "@/lib/sale-utils"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -465,7 +466,11 @@ export default function ClientDetailsPage() {
                     {t("clients.detail.totalCreditGranted")}
                   </span>
                   <span className="text-3xl font-headline font-bold text-destructive">
-                    {formatAmount(sales.reduce((acc, s) => acc + (s.debtAmount || 0), 0))}
+                    {formatAmount(
+                      sales
+                        .filter(isSaleCountedInRevenue)
+                        .reduce((acc, s) => acc + (s.debtAmount || 0), 0)
+                    )}
                   </span>
                 </div>
                 <div className="p-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center">

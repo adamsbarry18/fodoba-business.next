@@ -2,8 +2,10 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { ReportService } from "@/services/report.service"
 import { StoreService } from "@/services/store.service"
+import { SaleService } from "@/services/sale.service"
 import { Sale, Store } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -13,15 +15,42 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StatusBadge } from "@/components/ui/status-badge"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   ArrowLeft,
   Download,
   Printer,
   Search,
   Loader2,
+  MoreHorizontal,
+  PencilLine,
+  Ban,
 } from "lucide-react"
 import Link from "next/link"
-import { format, startOfMonth, endOfMonth } from "date-fns"
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  startOfMonth,
+  endOfMonth,
+  subDays,
+} from "date-fns"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import { useCurrency } from "@/hooks/use-currency"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
@@ -35,9 +64,48 @@ import { SaleClientInfo } from "@/components/sales/sale-client-info"
 import { PrintService } from "@/services/print.service"
 import { getPrintLabels } from "@/lib/print-labels"
 import { downloadSalesCsv } from "@/lib/sales-export-utils"
+import { canCancelOrCorrectSale } from "@/lib/sale-utils"
+import { useStore } from "@/lib/contexts/StoreContext"
+import { useAuth } from "@/lib/contexts/AuthContext"
+import { RoleGuard } from "@/components/auth/role-guard"
 import { useT } from "@/i18n/context"
 
 const PAGE_SIZE = 50
+
+type SalesPeriodPreset = "today" | "7d" | "30d" | "month"
+
+function getSalesPeriodRange(preset: SalesPeriodPreset, now = new Date()) {
+  switch (preset) {
+    case "today":
+      return {
+        startDate: format(now, "yyyy-MM-dd"),
+        endDate: format(now, "yyyy-MM-dd"),
+      }
+    case "7d":
+      return {
+        startDate: format(subDays(now, 6), "yyyy-MM-dd"),
+        endDate: format(now, "yyyy-MM-dd"),
+      }
+    case "month":
+      return {
+        startDate: format(startOfMonth(now), "yyyy-MM-dd"),
+        endDate: format(endOfMonth(now), "yyyy-MM-dd"),
+      }
+    case "30d":
+    default:
+      return {
+        startDate: format(subDays(now, 29), "yyyy-MM-dd"),
+        endDate: format(now, "yyyy-MM-dd"),
+      }
+  }
+}
+
+const SALES_PERIOD_PRESETS: { id: SalesPeriodPreset; labelKey: string }[] = [
+  { id: "today", labelKey: "reports.sales.period.today" },
+  { id: "7d", labelKey: "reports.sales.period.7d" },
+  { id: "30d", labelKey: "reports.sales.period.30d" },
+  { id: "month", labelKey: "reports.sales.period.month" },
+]
 
 const SALES_REPORT_COLUMN_LABEL_KEYS: Record<string, string> = {
   date: "reports.sales.colDate",
@@ -46,21 +114,29 @@ const SALES_REPORT_COLUMN_LABEL_KEYS: Record<string, string> = {
   total: "reports.sales.colTotal",
   payment: "reports.sales.colPayment",
   status: "reports.sales.colStatus",
-  actions: "reports.sales.colTicket",
+  actions: "reports.sales.colActions",
 }
 
 export default function SalesReportPage() {
   const t = useT()
+  const router = useRouter()
   const { formatAmount } = useCurrency()
+  const { activeStore } = useStore()
+  const { userProfile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<Sale[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [totals, setTotals] = useState({ revenue: 0, discount: 0, debt: 0, count: 0 })
 
-  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"))
-  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"))
+  const defaultRange = getSalesPeriodRange("30d")
+  const [startDate, setStartDate] = useState(defaultRange.startDate)
+  const [endDate, setEndDate] = useState(defaultRange.endDate)
+  const [periodPreset, setPeriodPreset] = useState<SalesPeriodPreset | "custom">("30d")
   const [storeId, setStoreId] = useState("all")
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null)
+  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelling, setCancelling] = useState(false)
 
   const salesResetKey = `${startDate}|${endDate}|${storeId}|${sales.length}`
   const {
@@ -86,8 +162,8 @@ export default function SalesReportPage() {
     try {
       const [salesRes, storesRes] = await Promise.all([
         ReportService.getSalesReport({
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
+          startDate: startOfDay(new Date(`${startDate}T00:00:00`)),
+          endDate: endOfDay(new Date(`${endDate}T00:00:00`)),
           storeId,
         }),
         StoreService.listStores(100),
@@ -105,6 +181,54 @@ export default function SalesReportPage() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const ensureActiveStoreForSale = (sale: Sale) => {
+    if (!activeStore) {
+      toast.error(t("reports.sales.needActiveStore"))
+      return false
+    }
+    if (sale.storeId !== activeStore.id) {
+      toast.error(t("reports.sales.wrongStore"))
+      return false
+    }
+    return true
+  }
+
+  const handleCorrectSale = (sale: Sale) => {
+    if (!ensureActiveStoreForSale(sale)) return
+    router.push(`/pos?correctSaleId=${sale.id}`)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!saleToCancel || !activeStore || !userProfile) return
+    if (!ensureActiveStoreForSale(saleToCancel)) return
+
+    setCancelling(true)
+    try {
+      const result = await SaleService.cancelSale({
+        saleId: saleToCancel.id,
+        store: activeStore,
+        user: userProfile,
+        reason: cancelReason.trim() || undefined,
+      })
+      if (result.debtNotReversed > 0) {
+        toast.warning(
+          t("reports.sales.cancelDebtPartial", {
+            amount: formatAmount(result.debtNotReversed),
+          })
+        )
+      } else {
+        toast.success(t("reports.sales.cancelSuccess"))
+      }
+      setSaleToCancel(null)
+      setCancelReason("")
+      await loadData()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : t("reports.sales.cancelError"))
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   const handleExportCsv = () => {
     if (sales.length === 0) {
@@ -208,40 +332,78 @@ export default function SalesReportPage() {
 
       <Card>
         <CardContent className="p-6">
-          <div className="grid gap-6 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label>{t("reports.sales.startDate")}</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {SALES_PERIOD_PRESETS.map((preset) => (
+                <Button
+                  key={preset.id}
+                  type="button"
+                  size="sm"
+                  variant={periodPreset === preset.id ? "default" : "outline"}
+                  className={cn(
+                    "rounded-xl text-xs font-bold",
+                    periodPreset === preset.id && "shadow-sm"
+                  )}
+                  onClick={() => {
+                    const range = getSalesPeriodRange(preset.id)
+                    setPeriodPreset(preset.id)
+                    setStartDate(range.startDate)
+                    setEndDate(range.endDate)
+                  }}
+                >
+                  {t(preset.labelKey)}
+                </Button>
+              ))}
             </div>
-            <div className="space-y-2">
-              <Label>{t("reports.sales.endDate")}</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("reports.sales.store")}</Label>
-              <Select value={storeId} onValueChange={setStoreId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("reports.sales.storeAll")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("reports.sales.storeAll")}</SelectItem>
-                  {stores.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button className="w-full" onClick={loadData} disabled={loading}>
-                {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="mr-2 h-4 w-4" />
-                )}
-                {t("reports.sales.filter")}
-              </Button>
+            <div className="grid gap-6 md:grid-cols-4">
+              <div className="space-y-2">
+                <Label>{t("reports.sales.startDate")}</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setPeriodPreset("custom")
+                    setStartDate(e.target.value)
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("reports.sales.endDate")}</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setPeriodPreset("custom")
+                    setEndDate(e.target.value)
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("reports.sales.store")}</Label>
+                <Select value={storeId} onValueChange={setStoreId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("reports.sales.storeAll")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("reports.sales.storeAll")}</SelectItem>
+                    {stores.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button className="w-full" onClick={loadData} disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="mr-2 h-4 w-4" />
+                  )}
+                  {t("reports.sales.filter")}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -345,7 +507,10 @@ export default function SalesReportPage() {
                         colSpan={visibleColumnCount}
                         className="py-12 text-center text-muted-foreground"
                       >
-                        {t("reports.sales.noSales")}
+                        {t("reports.sales.noSalesPeriod", {
+                          start: format(new Date(`${startDate}T00:00:00`), "dd/MM/yyyy"),
+                          end: format(new Date(`${endDate}T00:00:00`), "dd/MM/yyyy"),
+                        })}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -413,7 +578,50 @@ export default function SalesReportPage() {
                         </VisibleTableColumn>
                         <VisibleTableColumn id="actions" isVisible={isVisible}>
                           <TableCell className="text-right">
-                            <SaleTicketButton sale={s} stores={stores} />
+                            <div className="flex items-center justify-end gap-1">
+                              <SaleTicketButton sale={s} stores={stores} />
+                              {canCancelOrCorrectSale(s) && (
+                                <RoleGuard permissions={["modify:sale", "cancel:sale"]}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-lg"
+                                        aria-label={t("reports.sales.actionsMenu")}
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="rounded-xl">
+                                      <RoleGuard permission="modify:sale">
+                                        <DropdownMenuItem
+                                          className="gap-2"
+                                          onClick={() => handleCorrectSale(s)}
+                                        >
+                                          <PencilLine className="h-3.5 w-3.5" />
+                                          {t("reports.sales.correct")}
+                                        </DropdownMenuItem>
+                                      </RoleGuard>
+                                      <RoleGuard permission="cancel:sale">
+                                        <DropdownMenuItem
+                                          className="gap-2 text-destructive focus:text-destructive"
+                                          onClick={() => {
+                                            if (!ensureActiveStoreForSale(s)) return
+                                            setSaleToCancel(s)
+                                            setCancelReason("")
+                                          }}
+                                        >
+                                          <Ban className="h-3.5 w-3.5" />
+                                          {t("reports.sales.cancel")}
+                                        </DropdownMenuItem>
+                                      </RoleGuard>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </RoleGuard>
+                              )}
+                            </div>
                           </TableCell>
                         </VisibleTableColumn>
                       </TableRow>
@@ -433,6 +641,64 @@ export default function SalesReportPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={!!saleToCancel}
+        onOpenChange={(open) => {
+          if (!open && !cancelling) {
+            setSaleToCancel(null)
+            setCancelReason("")
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("reports.sales.cancelTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {saleToCancel
+                ? t("reports.sales.cancelDesc", {
+                    ref: saleToCancel.id.slice(-6).toUpperCase(),
+                  })
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-1">
+            <Label htmlFor="cancel-reason" className="text-xs font-bold uppercase text-muted-foreground">
+              {t("reports.sales.cancelReason")}
+            </Label>
+            <Input
+              id="cancel-reason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder={t("reports.sales.cancelReasonPlaceholder")}
+              className="rounded-xl"
+              disabled={cancelling}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" disabled={cancelling}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancelling}
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmCancel()
+              }}
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("common.loading")}
+                </>
+              ) : (
+                t("reports.sales.cancelConfirm")
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

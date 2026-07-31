@@ -172,6 +172,42 @@ export function applySaleItemsToDecomposedStock(
   )
 }
 
+/** Inverse d'une ligne de vente (retour stock) */
+export function applySaleReturnItemToDecomposedStock(
+  stock: DecomposedStock,
+  product: Product,
+  item: SaleItem
+): DecomposedStock {
+  const normalized = normalizeProduct(product)
+  const ratio = getRetailUnitsPerPack(normalized)
+  const tier = item.priceTier ?? "retail"
+  const qty = Math.max(0, Number(item.quantity) || 0)
+  if (qty <= 0) return stock
+
+  if (usesPackagingTier(product, tier)) {
+    return buildDecomposedStock(
+      stock.packagingQty + qty,
+      stock.detailQty,
+      normalized.unitsPerPack,
+      normalized.retailQtyFactor
+    )
+  }
+
+  return applyRetailQuantityIn(stock, qty, ratio)
+}
+
+/** Inverse plusieurs lignes du même produit */
+export function applySaleReturnItemsToDecomposedStock(
+  initial: DecomposedStock,
+  product: Product,
+  items: SaleItem[]
+): DecomposedStock {
+  return items.reduce(
+    (acc, item) => applySaleReturnItemToDecomposedStock(acc, product, item),
+    initial
+  )
+}
+
 /** Réception achat : quantité saisie en unités de conditionnement si produit conditionné */
 export function applyPurchaseQuantityToDecomposedStock(
   stock: DecomposedStock,

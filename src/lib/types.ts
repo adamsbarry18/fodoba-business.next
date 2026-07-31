@@ -297,6 +297,14 @@ export const SaleSchema = z.object({
   amountPaid: z.number(),
   debtAmount: z.number(),
   status: z.enum(["COMPLETED", "CANCELLED", "REFUNDED"]),
+  cancelledAt: z.any().optional(),
+  cancelledBy: z.string().optional(),
+  cancelledByName: z.string().optional(),
+  cancelReason: z.string().optional(),
+  /** Vente de remplacement après correction */
+  replacedBySaleId: z.string().optional(),
+  /** Vente d'origine remplacée par celle-ci */
+  replacesSaleId: z.string().optional(),
 });
 
 export type Sale = z.infer<typeof SaleSchema>;

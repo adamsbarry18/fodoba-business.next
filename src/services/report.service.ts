@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Sale, Product, Client, Supplier, StockLevel } from "@/lib/types";
+import { isSaleCountedInRevenue } from "@/lib/sale-utils";
 
 export const ReportService = {
   /**
@@ -34,7 +35,8 @@ export const ReportService = {
 
     sales.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
 
-    const totals = sales.reduce((acc, s) => ({
+    const counted = sales.filter(isSaleCountedInRevenue);
+    const totals = counted.reduce((acc, s) => ({
       revenue: acc.revenue + s.total,
       discount: acc.discount + (s.discount || 0),
       debt: acc.debt + (s.debtAmount || 0),

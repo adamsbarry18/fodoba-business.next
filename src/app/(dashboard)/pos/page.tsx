@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { DocumentSnapshot } from "firebase/firestore"
 import { ProductService } from "@/services/product.service"
 import { ClientService } from "@/services/client.service"
@@ -35,6 +36,7 @@ import {
   Store,
   X,
   RefreshCw,
+  PencilLine,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useStore } from "@/lib/contexts/StoreContext"
@@ -85,6 +87,9 @@ export default function POSPage() {
   const { userProfile } = useAuth()
   const { formatAmount } = useCurrency()
   const t = useT()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const correctSaleIdParam = searchParams.get("correctSaleId")
   
   // Product & Category Data
   const [products, setProducts] = useState<Product[]>([])
@@ -101,6 +106,9 @@ export default function POSPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [cart, setCart] = useState<SaleItem[]>([])
+  const [correctingSaleId, setCorrectingSaleId] = useState<string | null>(null)
+  const [correctingSaleRef, setCorrectingSaleRef] = useState<string | null>(null)
+  const preloadDoneRef = useRef<string | null>(null)
   
   // Customer autocomplete states
   const [selectedClientId, setSelectedClientId] = useState<string>("none")
@@ -199,6 +207,62 @@ export default function POSPage() {
       .then(setCashSession)
       .catch(() => setCashSession(null))
   }, [activeStore?.id, isPaymentOpen, isSuccessOpen])
+
+  // Préchargement panier pour correction de vente
+  useEffect(() => {
+    if (!correctSaleIdParam || !activeStore || loading) return
+    if (preloadDoneRef.current === correctSaleIdParam) return
+
+    const preload = async () => {
+      try {
+        const sale = await SaleService.getSale(correctSaleIdParam)
+        if (!sale) {
+          toast.error(t("pos.correctSaleNotFound"))
+          router.replace("/pos")
+          return
+        }
+        if (sale.storeId !== activeStore.id) {
+          toast.error(t("pos.correctSaleWrongStore"))
+          router.replace("/pos")
+          return
+        }
+        if (sale.status !== "COMPLETED") {
+          toast.error(t("pos.correctSaleNotEditable"))
+          router.replace("/pos")
+          return
+        }
+
+        setCart(sale.items.map((item) => ({ ...item })))
+        setDiscount(sale.discount || 0)
+        if (sale.clientId) {
+          setSelectedClientId(sale.clientId)
+          const client = clients.find((c) => c.id === sale.clientId)
+          setClientSearch(client?.name || sale.clientName || "")
+        } else {
+          setSelectedClientId("none")
+          setClientSearch("")
+        }
+        setCorrectingSaleId(sale.id)
+        setCorrectingSaleRef(sale.id.slice(-6).toUpperCase())
+        preloadDoneRef.current = correctSaleIdParam
+        toast.message(t("pos.correctSaleLoaded", { ref: sale.id.slice(-6).toUpperCase() }))
+      } catch {
+        toast.error(t("pos.correctSaleLoadError"))
+        router.replace("/pos")
+      }
+    }
+
+    void preload()
+  }, [correctSaleIdParam, activeStore, loading, clients, router, t])
+
+  const clearCorrectionMode = useCallback(() => {
+    setCorrectingSaleId(null)
+    setCorrectingSaleRef(null)
+    preloadDoneRef.current = null
+    if (correctSaleIdParam) {
+      router.replace("/pos")
+    }
+  }, [correctSaleIdParam, router])
 
   // Refs pour pagination : évite de recréer loadProductsByCategory à chaque fetch
   // (sinon l'effet search relance le chargement en boucle → spinner infini).
@@ -496,17 +560,42 @@ export default function POSPage() {
 
     setProcessing(true)
     try {
-      const sale = await SaleService.processSale({
-        store: activeStore,
-        user: userProfile,
-        items: cart,
-        clientId: selectedClientId !== "none" ? selectedClientId : undefined,
-        payments,
-        discount,
-        subtotal,
-        total,
-        debtAmount
-      })
+      let sale: Sale
+      if (correctingSaleId) {
+        const result = await SaleService.correctSale({
+          originalSaleId: correctingSaleId,
+          store: activeStore,
+          user: userProfile,
+          items: cart,
+          clientId: selectedClientId !== "none" ? selectedClientId : undefined,
+          payments,
+          discount,
+          subtotal,
+          total,
+          debtAmount,
+        })
+        sale = result.sale
+        if (result.cancelled.debtNotReversed > 0) {
+          toast.warning(
+            t("pos.correctSaleDebtPartial", {
+              amount: formatAmount(result.cancelled.debtNotReversed),
+            })
+          )
+        }
+        clearCorrectionMode()
+      } else {
+        sale = await SaleService.processSale({
+          store: activeStore,
+          user: userProfile,
+          items: cart,
+          clientId: selectedClientId !== "none" ? selectedClientId : undefined,
+          payments,
+          discount,
+          subtotal,
+          total,
+          debtAmount
+        })
+      }
 
       setLastSale(sale)
       setCart([])
@@ -653,6 +742,39 @@ export default function POSPage() {
           </div>
           <Button asChild variant="outline" className="shrink-0 rounded-xl font-bold">
             <Link href="/reconciliation">{t("pos.openCash")}</Link>
+          </Button>
+        </div>
+      )}
+
+      {correctingSaleId && correctingSaleRef && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-xl bg-sky-500/10 p-2 text-sky-700 dark:text-sky-300">
+              <PencilLine className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-foreground">
+                {t("pos.correctSaleBannerTitle", { ref: correctingSaleRef })}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("pos.correctSaleBannerDesc")}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="shrink-0 rounded-xl font-bold"
+            onClick={() => {
+              setCart([])
+              setDiscount(0)
+              setSelectedClientId("none")
+              setClientSearch("")
+              clearCorrectionMode()
+              toast.message(t("pos.correctSaleCancelled"))
+            }}
+          >
+            {t("pos.correctSaleAbort")}
           </Button>
         </div>
       )}

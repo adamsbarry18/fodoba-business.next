@@ -16,6 +16,8 @@ export type Permission =
   | 'adjust:stock'            // Ajustement manuel d'inventaire (Admin/Gérant)
   | 'manage:transfers'        // Initier/valider des transferts entre boutiques (Admin/Gérant)
   | 'create:sale'             // Enregistrer une vente (Tous)
+  | 'cancel:sale'             // Annuler une vente (Tous - CDC 2.2)
+  | 'modify:sale'             // Corriger une vente (Tous - CDC 2.2)
   | 'apply:discount:full'     // Remise illimitée (Admin)
   | 'apply:discount:limited'  // Remise sous seuil (Manager/Vendeur)
   | 'manage:purchases'        // Achats fournisseurs et coût de revient (Admin/Gérant)
@@ -43,6 +45,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'adjust:stock',
     'manage:transfers',
     'create:sale',
+    'cancel:sale',
+    'modify:sale',
     'apply:discount:full',
     'manage:purchases',
     'manage:expenses',
@@ -62,6 +66,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'adjust:stock',
     'manage:transfers',
     'create:sale',
+    'cancel:sale',
+    'modify:sale',
     'apply:discount:limited',
     'manage:purchases',
     'manage:expenses',
@@ -75,6 +81,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view:stock',
     'view:clients',
     'create:sale',
+    'cancel:sale',
+    'modify:sale',
     'apply:discount:limited',
     'manage:expenses',
     'reconcile:cash',

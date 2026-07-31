@@ -97,20 +97,24 @@ service cloud.firestore {
       allow write: if isAdmin() || isManager();
     }
 
-    // Ventes : Isolation par boutique. Tous peuvent créer (CDC 2.2).
+    // Ventes : Isolation par boutique. Création + annulation/correction (CDC 2.2).
     match /sales/{saleId} {
       allow read: if isSignedIn() && isActive() && isStoreAuthorized(resource.data.storeId);
       allow create: if isSignedIn() && isActive() && isStoreAuthorized(request.resource.data.storeId);
-      allow update, delete: if isAdmin();
+      allow update: if isSignedIn() && isActive()
+        && isStoreAuthorized(resource.data.storeId)
+        && isStoreAuthorized(request.resource.data.storeId);
+      allow delete: if isAdmin();
     }
 
-    // Mouvements de stock : admin/gérant ou sortie automatique lors d'une vente
+    // Mouvements de stock : admin/gérant ou sortie/retour automatique lors d'une vente
     match /inventory_movements/{moveId} {
       allow read: if isSignedIn() && isActive() && isStoreAuthorized(resource.data.storeId);
       allow create: if isSignedIn() && isActive() && isStoreAuthorized(request.resource.data.storeId)
         && (
           isAdmin() || isManager()
           || request.resource.data.type == 'SALE'
+          || request.resource.data.type == 'RETURN'
         );
       allow update, delete: if isAdmin();
     }
