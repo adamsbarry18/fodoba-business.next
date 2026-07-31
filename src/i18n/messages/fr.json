@@ -171,6 +171,8 @@
   "payment.removeMethod": "Retirer ce moyen",
   "payment.addSplitMethod": "Ajouter un moyen de paiement",
   "payment.removeSplitMethod": "Retirer",
+  "payment.customMethodPlaceholder": "Ex. Paypal, Wave, chèque…",
+  "payment.confirmCustomMethod": "Ajouter",
   "auth.login": "Connexion",
   "auth.loginDesc": "Accédez à votre espace de gestion commerciale.",
   "auth.email": "Email professionnel",

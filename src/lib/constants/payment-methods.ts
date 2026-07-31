@@ -1,4 +1,4 @@
-import type { PaymentMethod } from "@/lib/types"
+import type { KnownPaymentMethod, PaymentMethod } from "@/lib/types"
 import frMessages from "@/i18n/messages/fr.json"
 import { getNestedMessage, nestMessages } from "@/i18n/nest-messages"
 
@@ -7,7 +7,7 @@ const nestedFrMessages = nestMessages(frMessages)
 export type PosPaymentMode = "comptant" | "partiel" | "credit" | "fractionne"
 
 export type PaymentMethodOption = {
-  id: PaymentMethod
+  id: KnownPaymentMethod
   label: string
 }
 
@@ -18,7 +18,7 @@ export const PRIMARY_PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: "CARD", label: "payment.card" },
 ]
 
-/** Moyens additionnels (ajoutables dynamiquement). */
+/** Moyens additionnels historiques (toujours reconnus à l'affichage). */
 export const EXTRA_PAYMENT_METHODS: PaymentMethodOption[] = [
   { id: "MOBILE_MONEY", label: "payment.mobileMoney" },
   { id: "TRANSFER", label: "payment.transfer" },
@@ -33,7 +33,7 @@ export const PAYMENT_METHOD_OPTIONS: PaymentMethodOption[] = [
 /** Alias historique : moyens standards (principaux + extras, hors UI progressive). */
 export const POS_PAYMENT_METHODS = PAYMENT_METHOD_OPTIONS.filter((m) => m.id !== "OTHER")
 
-/** Modes du paiement fractionné (tous les moyens). */
+/** Modes du paiement fractionné (tous les moyens connus). */
 export const POS_FRACTIONAL_METHODS = PAYMENT_METHOD_OPTIONS
 
 export const PAYMENT_METHOD_IDS = PAYMENT_METHOD_OPTIONS.map((m) => m.id)
@@ -41,26 +41,59 @@ export const PAYMENT_METHOD_IDS = PAYMENT_METHOD_OPTIONS.map((m) => m.id)
 export const PRIMARY_PAYMENT_METHOD_IDS = PRIMARY_PAYMENT_METHODS.map((m) => m.id)
 export const EXTRA_PAYMENT_METHOD_IDS = EXTRA_PAYMENT_METHODS.map((m) => m.id)
 
-export function isPrimaryPaymentMethod(method: PaymentMethod): boolean {
-  return PRIMARY_PAYMENT_METHOD_IDS.includes(method)
+export function isKnownPaymentMethod(method: string): method is KnownPaymentMethod {
+  return PAYMENT_METHOD_IDS.includes(method as KnownPaymentMethod)
 }
 
-export function isExtraPaymentMethod(method: PaymentMethod): boolean {
-  return EXTRA_PAYMENT_METHOD_IDS.includes(method)
+export function isPrimaryPaymentMethod(method: string): boolean {
+  return PRIMARY_PAYMENT_METHOD_IDS.includes(method as KnownPaymentMethod)
 }
 
-/** Retourne la clé i18n du mode de paiement (à passer à `t()`). */
+/** True si le moyen n'est pas un des 3 chips principaux (extra connu ou custom). */
+export function isExtraOrCustomPaymentMethod(method: string): boolean {
+  return !isPrimaryPaymentMethod(method)
+}
+
+/** @deprecated Prefer isExtraOrCustomPaymentMethod */
+export function isExtraPaymentMethod(method: string): boolean {
+  return EXTRA_PAYMENT_METHOD_IDS.includes(method as KnownPaymentMethod)
+}
+
+/**
+ * Normalise une saisie libre de moyen de paiement.
+ * Mappe vers un id connu si l'utilisateur retape CASH / ORANGE_MONEY / etc.
+ */
+export function normalizePaymentMethodInput(raw: string): PaymentMethod | null {
+  const trimmed = raw.trim().replace(/\s+/g, " ")
+  if (!trimmed || trimmed.length > 48) return null
+
+  const asId = trimmed.toUpperCase().replace(/[\s-]+/g, "_")
+  if (isKnownPaymentMethod(asId)) return asId
+
+  return trimmed
+}
+
+/** Clé i18n si moyen connu, sinon le libellé tel quel. */
 export function getPaymentMethodLabel(method: string): string {
   return PAYMENT_METHOD_OPTIONS.find((m) => m.id === method)?.label ?? method
 }
 
-/** Libellé FR pour exports PDF (hors composants React). */
-export function getPaymentMethodLabelFr(method: string): string {
-  const key = getPaymentMethodLabel(method)
-  return getNestedMessage(nestedFrMessages, key) ?? method
+export function resolvePaymentMethodDisplay(
+  method: string,
+  translate: (key: string) => string
+): string {
+  const option = PAYMENT_METHOD_OPTIONS.find((m) => m.id === method)
+  return option ? translate(option.label) : method
 }
 
-export const EMPTY_PAYMENT_AMOUNTS = (): Record<PaymentMethod, string> => ({
+/** Libellé FR pour exports PDF (hors composants React). */
+export function getPaymentMethodLabelFr(method: string): string {
+  const option = PAYMENT_METHOD_OPTIONS.find((m) => m.id === method)
+  if (!option) return method
+  return getNestedMessage(nestedFrMessages, option.label) ?? method
+}
+
+export const EMPTY_PAYMENT_AMOUNTS = (): Record<string, string> => ({
   CASH: "",
   ORANGE_MONEY: "",
   MOBILE_MONEY: "",
@@ -72,7 +105,7 @@ export const EMPTY_PAYMENT_AMOUNTS = (): Record<PaymentMethod, string> => ({
 export function buildSalePayments(
   mode: PosPaymentMode,
   total: number,
-  amounts: Record<PaymentMethod, string>,
+  amounts: Record<string, string>,
   comptantMethod: PaymentMethod
 ): { payments: { method: PaymentMethod; amount: number }[]; debtAmount: number } {
   if (mode === "credit") {
@@ -86,15 +119,13 @@ export function buildSalePayments(
     return { payments, debtAmount: Math.max(0, total - paid) }
   }
 
-  const methodList = mode === "fractionne" ? POS_FRACTIONAL_METHODS : PAYMENT_METHOD_OPTIONS
-
   const entries =
     mode === "comptant"
       ? [{ method: comptantMethod, amount: Number(amounts[comptantMethod]) || total }]
-      : methodList
-          .map(({ id }) => ({
-            method: id,
-            amount: Number(amounts[id]) || 0,
+      : Object.entries(amounts)
+          .map(([method, raw]) => ({
+            method,
+            amount: Number(raw) || 0,
           }))
           .filter((e) => e.amount > 0)
 

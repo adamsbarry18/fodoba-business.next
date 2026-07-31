@@ -36,7 +36,7 @@ import {
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useCurrency } from "@/hooks/use-currency"
 import Papa from "papaparse"
-import { getPaymentMethodLabel, PAYMENT_METHOD_OPTIONS } from "@/lib/constants/payment-methods"
+import { resolvePaymentMethodDisplay, PAYMENT_METHOD_OPTIONS } from "@/lib/constants/payment-methods"
 import {
   EXPENSE_CATEGORIES,
   filterExpenses,
@@ -156,7 +156,7 @@ export default function ExpensesPage() {
         [t("expenses.colCategory")]: e.category,
         Label: e.label,
         [t("expenses.colAmount")]: e.amount,
-        [t("expenses.colMethod")]: t(getPaymentMethodLabel(e.method)),
+        [t("expenses.colMethod")]: resolvePaymentMethodDisplay(e.method, (key) => t(key)),
         [t("expenses.colAuthor")]: e.performedByName,
         Notes: e.notes || "",
       }

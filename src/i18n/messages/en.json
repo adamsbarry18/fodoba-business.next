@@ -171,6 +171,8 @@
   "payment.removeMethod": "Remove this method",
   "payment.addSplitMethod": "Add a payment method",
   "payment.removeSplitMethod": "Remove",
+  "payment.customMethodPlaceholder": "e.g. Paypal, Wave, check…",
+  "payment.confirmCustomMethod": "Add",
   "auth.login": "Sign in",
   "auth.loginDesc": "Access your business management portal.",
   "auth.email": "Professional email",

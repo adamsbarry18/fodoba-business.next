@@ -158,7 +158,7 @@ export const ClientSchema = z.object({
 
 export type Client = z.infer<typeof ClientSchema>;
 
-export const PaymentMethodSchema = z.enum([
+export const KnownPaymentMethodSchema = z.enum([
   "CASH",
   "ORANGE_MONEY",
   "MOBILE_MONEY",
@@ -166,6 +166,15 @@ export const PaymentMethodSchema = z.enum([
   "TRANSFER",
   "OTHER",
 ])
+
+export type KnownPaymentMethod = z.infer<typeof KnownPaymentMethodSchema>
+
+/** Moyens connus ou libellé libre (ex. Paypal, Wave). */
+export const PaymentMethodSchema = z
+  .string()
+  .trim()
+  .min(1, "Le moyen de paiement est requis")
+  .max(48)
 
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>
 

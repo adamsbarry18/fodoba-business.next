@@ -1,5 +1,5 @@
 import type { CashSession, Purchase, Sale, StockMovement } from "@/lib/types"
-import { getPaymentMethodLabel } from "@/lib/constants/payment-methods"
+import { resolvePaymentMethodDisplay } from "@/lib/constants/payment-methods"
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string
 
@@ -297,7 +297,8 @@ export function getPrintLabels(t: TranslateFn): PrintLabels {
       tableTotal: t("print.table.totalFcfa"),
       tableStatus: t("print.table.status"),
     },
-    resolvePaymentMethod: (method) => t(getPaymentMethodLabel(method)),
+    resolvePaymentMethod: (method) =>
+      resolvePaymentMethodDisplay(method, (key) => t(key)),
     resolveSaleStatus: (status) => t(`badges.saleStatus.${status}`),
     resolvePurchaseStatus: (status) => t(`badges.purchaseStatus.${status}`),
     resolveStockMovementType: (type) => t(`badges.stockMovement.${type}`),

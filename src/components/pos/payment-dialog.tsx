@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,21 +25,16 @@ import { cn } from "@/lib/utils"
 import type { Client, CurrencyCode, PaymentMethod } from "@/lib/types"
 import {
   PRIMARY_PAYMENT_METHODS,
-  EXTRA_PAYMENT_METHODS,
   EMPTY_PAYMENT_AMOUNTS,
   buildSalePayments,
-  getPaymentMethodLabel,
+  isPrimaryPaymentMethod,
+  normalizePaymentMethodInput,
+  resolvePaymentMethodDisplay,
   type PosPaymentMode,
 } from "@/lib/constants/payment-methods"
 import { POS_PAYMENT_MODES } from "@/lib/pos-utils"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useCurrency } from "@/hooks/use-currency"
 import { useT } from "@/i18n/context"
 
@@ -69,7 +64,10 @@ export function PaymentDialog({
   const [mode, setMode] = useState<PosPaymentMode>("comptant")
   const [comptantMethod, setComptantMethod] = useState<PaymentMethod>("CASH")
   const [amounts, setAmounts] = useState(EMPTY_PAYMENT_AMOUNTS())
-  const [splitExtras, setSplitExtras] = useState<PaymentMethod[]>([])
+  const [splitExtras, setSplitExtras] = useState<string[]>([])
+  const [isAddingSplit, setIsAddingSplit] = useState(false)
+  const [splitDraft, setSplitDraft] = useState("")
+  const splitInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -77,6 +75,8 @@ export function PaymentDialog({
     setComptantMethod("CASH")
     setAmounts({ ...EMPTY_PAYMENT_AMOUNTS(), CASH: String(total) })
     setSplitExtras([])
+    setIsAddingSplit(false)
+    setSplitDraft("")
   }, [open, total])
 
   useEffect(() => {
@@ -90,8 +90,15 @@ export function PaymentDialog({
     }
     if (mode === "fractionne") {
       setSplitExtras([])
+      setIsAddingSplit(false)
+      setSplitDraft("")
     }
   }, [mode, comptantMethod, open, total])
+
+  useEffect(() => {
+    if (!isAddingSplit) return
+    splitInputRef.current?.focus()
+  }, [isAddingSplit])
 
   const { payments, debtAmount } = useMemo(
     () => buildSalePayments(mode, total, amounts, comptantMethod),
@@ -154,24 +161,38 @@ export function PaymentDialog({
 
   const splitMethods = useMemo(
     () => [
-      ...PRIMARY_PAYMENT_METHODS,
-      ...EXTRA_PAYMENT_METHODS.filter((m) => splitExtras.includes(m.id)),
+      ...PRIMARY_PAYMENT_METHODS.map((m) => ({ id: m.id, label: m.label, custom: false as const })),
+      ...splitExtras.map((id) => ({ id, label: id, custom: true as const })),
     ],
     [splitExtras]
   )
 
-  const availableSplitExtras = useMemo(
-    () => EXTRA_PAYMENT_METHODS.filter((m) => !splitExtras.includes(m.id)),
-    [splitExtras]
-  )
-
-  const addSplitExtra = (method: PaymentMethod) => {
+  const addSplitExtra = (method: string) => {
+    if (isPrimaryPaymentMethod(method)) return
     setSplitExtras((prev) => (prev.includes(method) ? prev : [...prev, method]))
+    setAmounts((prev) => ({ ...prev, [method]: prev[method] ?? "" }))
   }
 
-  const removeSplitExtra = (method: PaymentMethod) => {
+  const confirmSplitCustom = () => {
+    const normalized = normalizePaymentMethodInput(splitDraft)
+    if (!normalized) return
+    if (isPrimaryPaymentMethod(normalized)) {
+      setSplitDraft("")
+      setIsAddingSplit(false)
+      return
+    }
+    addSplitExtra(normalized)
+    setSplitDraft("")
+    setIsAddingSplit(false)
+  }
+
+  const removeSplitExtra = (method: string) => {
     setSplitExtras((prev) => prev.filter((m) => m !== method))
-    setAmounts((prev) => ({ ...prev, [method]: "" }))
+    setAmounts((prev) => {
+      const next = { ...prev }
+      delete next[method]
+      return next
+    })
   }
 
   return (
@@ -253,7 +274,14 @@ export function PaymentDialog({
               </Label>
               <PaymentMethodPicker
                 value={comptantMethod}
-                onValueChange={setComptantMethod}
+                onValueChange={(method) => {
+                  setComptantMethod(method)
+                  setAmounts((prev) => ({
+                    ...EMPTY_PAYMENT_AMOUNTS(),
+                    ...prev,
+                    [method]: prev[method] ?? String(total),
+                  }))
+                }}
               />
               <div className="space-y-1.5">
                 <Label htmlFor="comptant-amount" required className="text-xs font-semibold">
@@ -265,7 +293,7 @@ export function PaymentDialog({
                   min={0}
                   inputMode="decimal"
                   className="h-11 rounded-xl font-headline font-bold"
-                  value={amounts[comptantMethod]}
+                  value={amounts[comptantMethod] ?? ""}
                   onChange={(e) =>
                     setAmounts((prev) => ({ ...prev, [comptantMethod]: e.target.value }))
                   }
@@ -287,7 +315,13 @@ export function PaymentDialog({
               </Label>
               <PaymentMethodPicker
                 value={comptantMethod}
-                onValueChange={setComptantMethod}
+                onValueChange={(method) => {
+                  setComptantMethod(method)
+                  setAmounts((prev) => ({
+                    ...prev,
+                    [method]: prev[method] ?? "",
+                  }))
+                }}
               />
               <div className="space-y-1.5">
                 <Label htmlFor="partiel-amount" required className="text-xs font-semibold">
@@ -300,7 +334,7 @@ export function PaymentDialog({
                   max={total - 1}
                   inputMode="decimal"
                   className="h-11 rounded-xl font-bold"
-                  value={amounts[comptantMethod]}
+                  value={amounts[comptantMethod] ?? ""}
                   onChange={(e) =>
                     setAmounts((prev) => ({ ...prev, [comptantMethod]: e.target.value }))
                   }
@@ -337,13 +371,14 @@ export function PaymentDialog({
                 {t("pos.pay.splitDesc")}
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {splitMethods.map(({ id, label }) => {
-                  const isExtra = splitExtras.includes(id)
+                {splitMethods.map(({ id, label, custom }) => {
                   return (
                     <div key={id} className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {t(label)}
+                          {custom
+                            ? resolvePaymentMethodDisplay(id, (key) => t(key))
+                            : t(label)}
                         </Label>
                         <div className="flex items-center gap-2">
                           <button
@@ -353,7 +388,7 @@ export function PaymentDialog({
                           >
                             {t("pos.pay.balance")}
                           </button>
-                          {isExtra && (
+                          {custom && (
                             <button
                               type="button"
                               onClick={() => removeSplitExtra(id)}
@@ -371,7 +406,7 @@ export function PaymentDialog({
                         inputMode="decimal"
                         placeholder="0"
                         className="h-10 rounded-xl font-bold"
-                        value={amounts[id]}
+                        value={amounts[id] ?? ""}
                         onChange={(e) =>
                           setAmounts((prev) => ({ ...prev, [id]: e.target.value }))
                         }
@@ -380,31 +415,61 @@ export function PaymentDialog({
                   )
                 })}
               </div>
-              {availableSplitExtras.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 w-full rounded-xl border-dashed text-xs font-semibold"
-                    >
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      {t("payment.addSplitMethod")}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                    {availableSplitExtras.map((option) => (
-                      <DropdownMenuItem
-                        key={option.id}
-                        onSelect={() => addSplitExtra(option.id)}
-                        className="text-xs font-medium"
-                      >
-                        {t(getPaymentMethodLabel(option.id))}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {isAddingSplit ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    ref={splitInputRef}
+                    value={splitDraft}
+                    maxLength={48}
+                    placeholder={t("payment.customMethodPlaceholder")}
+                    className="h-9 rounded-xl text-xs"
+                    onChange={(e) => setSplitDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        confirmSplitCustom()
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault()
+                        setSplitDraft("")
+                        setIsAddingSplit(false)
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!normalizePaymentMethodInput(splitDraft)}
+                    className="h-9 shrink-0 rounded-xl text-xs font-semibold"
+                    onClick={confirmSplitCustom}
+                  >
+                    {t("payment.confirmCustomMethod")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 shrink-0 rounded-xl px-2"
+                    onClick={() => {
+                      setSplitDraft("")
+                      setIsAddingSplit(false)
+                    }}
+                    aria-label={t("common.cancel")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-full rounded-xl border-dashed text-xs font-semibold"
+                  onClick={() => setIsAddingSplit(true)}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  {t("payment.addSplitMethod")}
+                </Button>
               )}
               {!hasClient && debtAmount > 0 && (
                 <AlertBlock
