@@ -59,7 +59,6 @@ import { TableColumnToggle } from "@/components/ui/table-column-toggle"
 import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { TableListToolbar } from "@/components/ui/table-list-toolbar"
 import { SALES_REPORT_TABLE_COLUMNS } from "@/lib/table-column-presets"
-import { SaleTicketButton } from "@/components/sales/sale-ticket-button"
 import { SaleClientInfo } from "@/components/sales/sale-client-info"
 import { PrintService } from "@/services/print.service"
 import { getPrintLabels } from "@/lib/print-labels"
@@ -68,6 +67,7 @@ import { canCancelOrCorrectSale } from "@/lib/sale-utils"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { RoleGuard } from "@/components/auth/role-guard"
+import { useSaleTicket } from "@/hooks/use-sale-ticket"
 import { useT } from "@/i18n/context"
 
 const PAGE_SIZE = 50
@@ -126,6 +126,7 @@ export default function SalesReportPage() {
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<Sale[]>([])
   const [stores, setStores] = useState<Store[]>([])
+  const { printTicket, printingId } = useSaleTicket(stores)
   const [totals, setTotals] = useState({ revenue: 0, discount: 0, debt: 0, count: 0 })
 
   const defaultRange = getSalesPeriodRange("30d")
@@ -496,7 +497,7 @@ export default function SalesReportPage() {
                       <TableHead>{t("reports.sales.colStatus")}</TableHead>
                     </VisibleTableColumn>
                     <VisibleTableColumn id="actions" isVisible={isVisible}>
-                      <TableHead className="text-right">{t("reports.sales.colTicket")}</TableHead>
+                      <TableHead className="text-right">{t("reports.sales.colActions")}</TableHead>
                     </VisibleTableColumn>
                   </TableRow>
                 </TableHeader>
@@ -578,50 +579,59 @@ export default function SalesReportPage() {
                         </VisibleTableColumn>
                         <VisibleTableColumn id="actions" isVisible={isVisible}>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <SaleTicketButton sale={s} stores={stores} />
-                              {canCancelOrCorrectSale(s) && (
-                                <RoleGuard permissions={["modify:sale", "cancel:sale"]}>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 rounded-lg"
-                                        aria-label={t("reports.sales.actionsMenu")}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 rounded-lg"
+                                  aria-label={t("reports.sales.actionsMenu")}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="rounded-xl">
+                                <DropdownMenuItem
+                                  className="gap-2"
+                                  disabled={printingId === s.id}
+                                  onClick={() => printTicket(s)}
+                                >
+                                  {printingId === s.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Printer className="h-3.5 w-3.5" />
+                                  )}
+                                  {t("pos.ticket.label")}
+                                </DropdownMenuItem>
+                                {canCancelOrCorrectSale(s) && (
+                                  <>
+                                    <RoleGuard permission="modify:sale">
+                                      <DropdownMenuItem
+                                        className="gap-2"
+                                        onClick={() => handleCorrectSale(s)}
                                       >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="rounded-xl">
-                                      <RoleGuard permission="modify:sale">
-                                        <DropdownMenuItem
-                                          className="gap-2"
-                                          onClick={() => handleCorrectSale(s)}
-                                        >
-                                          <PencilLine className="h-3.5 w-3.5" />
-                                          {t("reports.sales.correct")}
-                                        </DropdownMenuItem>
-                                      </RoleGuard>
-                                      <RoleGuard permission="cancel:sale">
-                                        <DropdownMenuItem
-                                          className="gap-2 text-destructive focus:text-destructive"
-                                          onClick={() => {
-                                            if (!ensureActiveStoreForSale(s)) return
-                                            setSaleToCancel(s)
-                                            setCancelReason("")
-                                          }}
-                                        >
-                                          <Ban className="h-3.5 w-3.5" />
-                                          {t("reports.sales.cancel")}
-                                        </DropdownMenuItem>
-                                      </RoleGuard>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </RoleGuard>
-                              )}
-                            </div>
+                                        <PencilLine className="h-3.5 w-3.5" />
+                                        {t("reports.sales.correct")}
+                                      </DropdownMenuItem>
+                                    </RoleGuard>
+                                    <RoleGuard permission="cancel:sale">
+                                      <DropdownMenuItem
+                                        className="gap-2 text-destructive focus:text-destructive"
+                                        onClick={() => {
+                                          if (!ensureActiveStoreForSale(s)) return
+                                          setSaleToCancel(s)
+                                          setCancelReason("")
+                                        }}
+                                      >
+                                        <Ban className="h-3.5 w-3.5" />
+                                        {t("reports.sales.cancel")}
+                                      </DropdownMenuItem>
+                                    </RoleGuard>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </VisibleTableColumn>
                       </TableRow>
