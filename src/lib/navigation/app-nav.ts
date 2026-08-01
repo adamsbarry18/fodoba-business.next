@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Receipt,
   Building2,
+  Calculator,
 } from "lucide-react"
 import type { Permission } from "@/lib/auth/permissions"
 
@@ -134,6 +135,13 @@ export const APP_NAVIGATION: NavGroup[] = [
         url: "/suppliers",
         permission: "view:suppliers",
         description: "nav.suppliersDesc",
+      },
+      {
+        title: "nav.landedCost",
+        icon: Calculator,
+        url: "/landed-cost",
+        permission: "manage:purchases",
+        description: "nav.landedCostDesc",
       },
     ],
   },
