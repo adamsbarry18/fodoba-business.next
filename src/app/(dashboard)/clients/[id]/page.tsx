@@ -216,6 +216,11 @@ export default function ClientDetailsPage() {
     }
   }
 
+  const visibleSales = useMemo(
+    () => sales.filter(isSaleCountedInRevenue),
+    [sales]
+  )
+
   if (storeLoading || loading) {
     return (
       <div className="flex justify-center p-12">
@@ -425,13 +430,13 @@ export default function ClientDetailsPage() {
               <CardDescription>{t("clients.detail.recentSalesDesc")}</CardDescription>
             </CardHeader>
             <CardContent>
-              {sales.length === 0 ? (
+              {visibleSales.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   {t("clients.detail.noSales")}
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {sales.map((sale) => {
+                  {visibleSales.map((sale) => {
                     const canRepayInvoice =
                       sale.status === "COMPLETED" &&
                       sale.debtAmount > 0 &&
