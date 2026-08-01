@@ -37,6 +37,7 @@ import {
   PURCHASE_STATUS_ICONS,
   toPurchaseDate,
 } from "@/lib/purchase-utils"
+import { computeSupplierOutstandingDebt } from "@/lib/supplier-utils"
 import { usePaymentMethodLabel } from "@/hooks/use-payment-method-label"
 import { cn } from "@/lib/utils"
 import { useT, useLocale } from "@/i18n/context"
@@ -83,9 +84,8 @@ export default function SupplierDetailsPage() {
         return
       }
 
-      setSupplier(supplierData)
-
       if (storeIds.length === 0) {
+        setSupplier(supplierData)
         setPayments([])
         setPurchases([])
         return
@@ -95,6 +95,14 @@ export default function SupplierDetailsPage() {
         SupplierService.getSupplierPayments(supplierId, storeIds),
         SupplierService.getSupplierPurchases(supplierId, storeIds),
       ])
+
+      const outstanding = computeSupplierOutstandingDebt(purchasesData, paymentsData)
+      if ((supplierData.currentDebt || 0) !== outstanding) {
+        await SupplierService.syncCurrentDebtFromLedger(supplierId, storeIds)
+        setSupplier({ ...supplierData, currentDebt: outstanding })
+      } else {
+        setSupplier(supplierData)
+      }
 
       setPayments(paymentsData)
       setPurchases(purchasesData)
@@ -117,39 +125,6 @@ export default function SupplierDetailsPage() {
     }
   }, [searchParams])
 
-  useEffect(() => {
-    if (searchParams.get("action") === "payment" && supplier && supplier.currentDebt > 0) {
-      setPaymentDialogOpen(true)
-    }
-  }, [searchParams, supplier])
-
-  const handlePayment = async (data: {
-    amount: number
-    method: SupplierPayment["method"]
-    notes: string
-  }) => {
-    if (!supplier || !activeStore || !userProfile) return
-
-    setPaymentLoading(true)
-    try {
-      await SupplierService.recordPayment({
-        supplierId: supplier.id,
-        amount: data.amount,
-        method: data.method,
-        storeId: activeStore.id,
-        user: userProfile,
-        notes: data.notes,
-      })
-      toast.success(t("suppliers.paymentSuccess"))
-      setPaymentDialogOpen(false)
-      await loadData()
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("suppliers.paymentError"))
-    } finally {
-      setPaymentLoading(false)
-    }
-  }
-
   const receivedPurchases = useMemo(
     () => purchases.filter((p) => p.status === "RECEIVED"),
     [purchases]
@@ -165,6 +140,52 @@ export default function SupplierDetailsPage() {
     [payments]
   )
 
+  const outstandingDebt = useMemo(
+    () => computeSupplierOutstandingDebt(purchases, payments),
+    [purchases, payments]
+  )
+
+  useEffect(() => {
+    if (searchParams.get("action") === "payment" && supplier && outstandingDebt > 0) {
+      setPaymentDialogOpen(true)
+    }
+  }, [searchParams, supplier, outstandingDebt])
+
+  const handlePayment = async (data: {
+    amount: number
+    method: SupplierPayment["method"]
+    notes: string
+  }) => {
+    if (!supplier || !activeStore || !userProfile) return
+
+    if (data.amount > outstandingDebt) {
+      toast.error(
+        t("suppliers.amountExceedsDebt", { amount: formatAmount(outstandingDebt) })
+      )
+      return
+    }
+
+    setPaymentLoading(true)
+    try {
+      await SupplierService.recordPayment({
+        supplierId: supplier.id,
+        amount: data.amount,
+        method: data.method,
+        storeId: activeStore.id,
+        user: userProfile,
+        notes: data.notes,
+        allocateStoreIds: authorizedStoreIds,
+      })
+      toast.success(t("suppliers.paymentSuccess"))
+      setPaymentDialogOpen(false)
+      await loadData()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : t("suppliers.paymentError"))
+    } finally {
+      setPaymentLoading(false)
+    }
+  }
+
   const lastPurchase = purchases[0] ?? null
   const lastPayment = payments[0] ?? null
 
@@ -177,7 +198,8 @@ export default function SupplierDetailsPage() {
   }
   if (!supplier) return null
 
-  const hasDebt = supplier.currentDebt > 0
+  const hasDebt = outstandingDebt > 0
+  const supplierForPayment = { ...supplier, currentDebt: outstandingDebt }
 
   return (
     <div className="space-y-6 pb-8">
@@ -265,7 +287,7 @@ export default function SupplierDetailsPage() {
                 hasDebt ? "text-destructive" : "text-emerald-600"
               )}
             >
-              {formatAmount(supplier.currentDebt)}
+              {formatAmount(outstandingDebt)}
             </div>
             {hasDebt && (
               <p className="mt-1 flex items-center text-[10px] font-bold text-destructive">
@@ -518,7 +540,7 @@ export default function SupplierDetailsPage() {
                     hasDebt ? "text-destructive" : "text-emerald-600"
                   )}
                 >
-                  {formatAmount(supplier.currentDebt)}
+                  {formatAmount(outstandingDebt)}
                 </div>
               </div>
             </CardContent>
@@ -529,7 +551,7 @@ export default function SupplierDetailsPage() {
       <SupplierPaymentDialog
         open={paymentDialogOpen}
         onOpenChange={setPaymentDialogOpen}
-        supplier={supplier}
+        supplier={supplierForPayment}
         processing={paymentLoading}
         onSubmit={handlePayment}
       />

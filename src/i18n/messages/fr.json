@@ -553,6 +553,7 @@
   "suppliers.statementAsOf": "Arrêté au {date}",
   "suppliers.paymentSuccess": "Règlement enregistré",
   "suppliers.paymentError": "Erreur lors du règlement",
+  "suppliers.amountExceedsDebt": "Le montant ne peut pas dépasser {amount}",
   "suppliers.addSuccess": "Fournisseur ajouté avec succès",
   "suppliers.newSubtitle": "Enregistrement d'un partenaire d'approvisionnement dans la base globale.",
   "suppliers.sectionIdentification": "Identification",

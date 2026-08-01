@@ -551,6 +551,7 @@
   "suppliers.statementAsOf": "As of {date}",
   "suppliers.paymentSuccess": "Payment recorded",
   "suppliers.paymentError": "Error recording payment",
+  "suppliers.amountExceedsDebt": "Amount cannot exceed {amount}",
   "suppliers.addSuccess": "Supplier added successfully",
   "suppliers.newSubtitle": "Register a supply partner in the global base.",
   "suppliers.sectionIdentification": "Identification",

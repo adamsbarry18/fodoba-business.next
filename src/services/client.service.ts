@@ -1,4 +1,3 @@
-
 import { 
   collection, 
   doc, 
@@ -16,6 +15,7 @@ import {
 import { db } from "@/lib/firebase/client";
 import { Client, ClientPayment, Sale, UserProfile } from "@/lib/types";
 import { stripUndefined } from "@/lib/firestore-utils";
+import { getSaleOpenDebt, isSaleCountedInRevenue, sumOpenSaleDebt } from "@/lib/sale-utils";
 import { CashService } from "./cash.service";
 import type { ClientDeleteBlocker } from "@/lib/client-utils";
 
@@ -134,6 +134,51 @@ export const ClientService = {
     await deleteDoc(docRef);
   },
 
+  async getClientPayments(clientId: string, storeIds: string[]) {
+    return fetchByClientAndStores<ClientPayment>(
+      PAYMENTS_COLLECTION,
+      clientId,
+      storeIds
+    );
+  },
+
+  async getClientSales(clientId: string, storeIds: string[]) {
+    return fetchByClientAndStores<Sale>(
+      SALES_COLLECTION,
+      clientId,
+      storeIds
+    );
+  },
+
+  /** Factures terminées encore à crédit, plus anciennes d'abord (FIFO). */
+  async listOpenDebtSales(clientId: string, storeIds: string[]): Promise<Sale[]> {
+    const sales = await this.getClientSales(clientId, storeIds);
+    return sales
+      .filter((sale) => getSaleOpenDebt(sale) > 0)
+      .sort(
+        (a, b) => getTimestampSortValue(a.timestamp) - getTimestampSortValue(b.timestamp)
+      );
+  },
+
+  /**
+   * Recalcule `currentDebt` = somme des restes dus des factures actives.
+   * Corrige les dérives (remboursements globaux non ventilés, etc.).
+   */
+  async syncCurrentDebtFromSales(clientId: string, storeIds: string[]): Promise<number> {
+    const sales = await this.getClientSales(clientId, storeIds);
+    const outstanding = sumOpenSaleDebt(sales);
+    await updateDoc(doc(db, COLLECTION_NAME, clientId), {
+      currentDebt: outstanding,
+    });
+    return outstanding;
+  },
+
+  /**
+   * Enregistre un remboursement.
+   * - Avec `saleId` : ventile sur cette facture.
+   * - Sans `saleId` : ventile en FIFO sur les factures ouvertes (plus anciennes d'abord).
+   * `currentDebt` est ensuite aligné sur la somme des restes dus (scope `allocateStoreIds`).
+   */
   async recordPayment(params: {
     clientId: string
     amount: number
@@ -142,79 +187,145 @@ export const ClientService = {
     user: UserProfile
     notes?: string
     saleId?: string
+    allocateStoreIds?: string[]
   }) {
-    const { clientId, amount, method, storeId, user, notes, saleId } = params;
+    const {
+      clientId,
+      amount,
+      method,
+      storeId,
+      user,
+      notes,
+      saleId,
+      allocateStoreIds,
+    } = params;
 
     if (!amount || amount <= 0) {
       throw new Error("Montant invalide");
     }
 
     const session = await CashService.getActiveSession(storeId);
-    if (!session) throw new Error("Veuillez ouvrir la caisse pour enregistrer un remboursement.");
+    if (!session) {
+      throw new Error("Veuillez ouvrir la caisse pour enregistrer un remboursement.");
+    }
 
-    return await runTransaction(db, async (transaction) => {
-      const clientRef = doc(db, COLLECTION_NAME, clientId);
-      const clientSnap = await transaction.get(clientRef);
+    const scopeStoreIds = [...new Set(allocateStoreIds?.length ? allocateStoreIds : [storeId])];
 
-      if (!clientSnap.exists()) throw new Error("Client introuvable");
+    // Toutes les factures ouvertes du scope (pour sync final + FIFO)
+    let openSales = await this.listOpenDebtSales(clientId, scopeStoreIds);
 
-      const client = clientSnap.data() as Client;
-      if (client.currentDebt <= 0) {
-        throw new Error("Ce client n'a aucune dette à rembourser.");
-      }
-
-      let saleRef = saleId ? doc(db, SALES_COLLECTION, saleId) : null;
-      let sale: Sale | null = null;
-
-      if (saleRef) {
-        const saleSnap = await transaction.get(saleRef);
-        if (!saleSnap.exists()) throw new Error("Facture introuvable");
-        sale = saleSnap.data() as Sale;
-
+    if (saleId) {
+      const inScope = openSales.find((s) => s.id === saleId);
+      if (!inScope) {
+        const snap = await getDoc(doc(db, SALES_COLLECTION, saleId));
+        if (!snap.exists()) throw new Error("Facture introuvable");
+        const sale = snap.data() as Sale;
         if (sale.clientId !== clientId) {
           throw new Error("Cette facture n'appartient pas à ce client.");
+        }
+        if (!isSaleCountedInRevenue(sale) || getSaleOpenDebt(sale) <= 0) {
+          throw new Error("Cette facture est déjà soldée.");
         }
         if (sale.storeId !== storeId) {
           throw new Error("Activez la boutique de la facture pour enregistrer le remboursement.");
         }
-        if (sale.status !== "COMPLETED") {
-          throw new Error("Seule une facture terminée peut être remboursée.");
-        }
-        if (sale.debtAmount <= 0) {
-          throw new Error("Cette facture est déjà soldée.");
-        }
+        openSales = [sale, ...openSales.filter((s) => s.id !== sale.id)];
+      } else if (inScope.storeId !== storeId) {
+        throw new Error("Activez la boutique de la facture pour enregistrer le remboursement.");
+      }
+    }
+
+    const invoiceDebtTotal = sumOpenSaleDebt(openSales);
+    if (invoiceDebtTotal <= 0) {
+      throw new Error("Ce client n'a aucune dette à rembourser.");
+    }
+
+    const targetOpen = saleId
+      ? getSaleOpenDebt(openSales.find((s) => s.id === saleId)!)
+      : invoiceDebtTotal;
+    const maxPayable = Math.min(amount, targetOpen);
+    if (maxPayable <= 0) {
+      throw new Error("Montant invalide pour ce remboursement.");
+    }
+
+    const saleIdsToRead = [...new Set(openSales.map((s) => s.id))];
+
+    return await runTransaction(db, async (transaction) => {
+      const clientRef = doc(db, COLLECTION_NAME, clientId);
+      const clientSnap = await transaction.get(clientRef);
+      if (!clientSnap.exists()) throw new Error("Client introuvable");
+      const client = clientSnap.data() as Client;
+
+      const saleRefs = saleIdsToRead.map((id) => doc(db, SALES_COLLECTION, id));
+      const saleSnaps = await Promise.all(saleRefs.map((ref) => transaction.get(ref)));
+
+      const liveById = new Map<string, Sale>();
+      saleSnaps.forEach((snap, index) => {
+        if (!snap.exists()) return;
+        const sale = snap.data() as Sale;
+        if (sale.clientId !== clientId) return;
+        if (!isSaleCountedInRevenue(sale)) return;
+        liveById.set(saleIdsToRead[index]!, sale);
+      });
+
+      const liveOpen = saleIdsToRead
+        .map((id) => liveById.get(id))
+        .filter((s): s is Sale => !!s && getSaleOpenDebt(s) > 0)
+        .sort(
+          (a, b) => getTimestampSortValue(a.timestamp) - getTimestampSortValue(b.timestamp)
+        );
+
+      if (liveOpen.length === 0) {
+        throw new Error("Ce client n'a aucune dette à rembourser.");
       }
 
-      const maxPayable = sale
-        ? Math.min(amount, sale.debtAmount, client.currentDebt)
-        : Math.min(amount, client.currentDebt);
+      if (saleId) {
+        const target = liveOpen.find((s) => s.id === saleId);
+        if (!target) throw new Error("Cette facture est déjà soldée.");
+      }
 
-      if (maxPayable <= 0) {
+      let remainingPay = maxPayable;
+      const allocations: { saleId: string; sale: Sale; applied: number }[] = [];
+
+      for (const sale of liveOpen) {
+        if (remainingPay <= 0) break;
+        if (saleId && sale.id !== saleId) continue;
+        const applied = Math.min(remainingPay, getSaleOpenDebt(sale));
+        if (applied <= 0) continue;
+        allocations.push({ saleId: sale.id, sale, applied });
+        remainingPay -= applied;
+      }
+
+      const paidTotal = allocations.reduce((acc, a) => acc + a.applied, 0);
+      if (paidTotal <= 0) {
         throw new Error("Montant invalide pour ce remboursement.");
       }
 
-      const newDebt = Math.max(0, client.currentDebt - maxPayable);
-      transaction.update(clientRef, { currentDebt: newDebt });
+      const remainingById = new Map<string, number>();
+      for (const sale of liveOpen) {
+        remainingById.set(sale.id, getSaleOpenDebt(sale));
+      }
+      for (const { saleId: id, applied } of allocations) {
+        remainingById.set(id, Math.max(0, (remainingById.get(id) || 0) - applied));
+      }
 
-      if (sale && saleRef) {
-        const nextDebtAmount = Math.max(0, sale.debtAmount - maxPayable);
-        const nextAmountPaid = (sale.amountPaid || 0) + maxPayable;
-        const nextPayments = [
-          ...(sale.payments || []),
-          { method, amount: maxPayable },
-        ];
-        transaction.update(saleRef, {
+      for (const { saleId: id, sale, applied } of allocations) {
+        const nextDebtAmount = remainingById.get(id) ?? 0;
+        transaction.update(doc(db, SALES_COLLECTION, id), {
           debtAmount: nextDebtAmount,
-          amountPaid: nextAmountPaid,
-          payments: nextPayments,
+          amountPaid: (sale.amountPaid || 0) + applied,
+          payments: [...(sale.payments || []), { method, amount: applied }],
         });
       }
+
+      const outstanding = [...remainingById.values()].reduce((acc, v) => acc + v, 0);
+      transaction.update(clientRef, { currentDebt: outstanding });
 
       const paymentRef = doc(collection(db, PAYMENTS_COLLECTION));
       const payment = stripUndefined({
         id: paymentRef.id,
         clientId,
-        amount: maxPayable,
+        amount: paidTotal,
         method,
         timestamp: serverTimestamp(),
         storeId,
@@ -231,7 +342,7 @@ export const ClientService = {
         storeId,
         type: "IN",
         source: "CLIENT_PAYMENT",
-        amount: maxPayable,
+        amount: paidTotal,
         method,
         user,
         relatedDocId: paymentRef.id,
@@ -243,20 +354,4 @@ export const ClientService = {
       return payment;
     });
   },
-
-  async getClientPayments(clientId: string, storeIds: string[]) {
-    return fetchByClientAndStores<ClientPayment>(
-      PAYMENTS_COLLECTION,
-      clientId,
-      storeIds
-    );
-  },
-
-  async getClientSales(clientId: string, storeIds: string[]) {
-    return fetchByClientAndStores<Sale>(
-      SALES_COLLECTION,
-      clientId,
-      storeIds
-    );
-  }
 };

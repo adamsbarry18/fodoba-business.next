@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { ClientService } from "@/services/client.service"
 import { Client, ClientPayment, Sale } from "@/lib/types"
-import { isSaleCountedInRevenue } from "@/lib/sale-utils"
+import { isSaleCountedInRevenue, sumOpenSaleDebt } from "@/lib/sale-utils"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -76,8 +76,9 @@ export default function ClientDetailsPage() {
   const [notes, setNotes] = useState("")
 
   const openGlobalPayment = () => {
+    const outstanding = sumOpenSaleDebt(sales)
     setPaymentTargetSale(null)
-    setAmount(client?.currentDebt ? String(client.currentDebt) : "")
+    setAmount(outstanding > 0 ? String(outstanding) : "")
     setNotes("")
     setMethod("CASH")
     setPaymentDialogOpen(true)
@@ -123,9 +124,8 @@ export default function ClientDetailsPage() {
         return
       }
 
-      setClient(clientData)
-
       if (storeIds.length === 0) {
+        setClient(clientData)
         setPayments([])
         setSales([])
         return
@@ -135,6 +135,15 @@ export default function ClientDetailsPage() {
         ClientService.getClientPayments(clientId, storeIds),
         ClientService.getClientSales(clientId, storeIds),
       ])
+
+      const outstanding = sumOpenSaleDebt(salesData)
+      // Aligne l'encours stocké sur la somme réelle des factures
+      if ((clientData.currentDebt || 0) !== outstanding) {
+        await ClientService.syncCurrentDebtFromSales(clientId, storeIds)
+        setClient({ ...clientData, currentDebt: outstanding })
+      } else {
+        setClient(clientData)
+      }
 
       setPayments(paymentsData)
       setSales(salesData)
@@ -158,13 +167,23 @@ export default function ClientDetailsPage() {
     }
   }, [searchParams])
 
+  const visibleSales = useMemo(
+    () => sales.filter(isSaleCountedInRevenue),
+    [sales]
+  )
+
+  const outstandingDebt = useMemo(
+    () => sumOpenSaleDebt(sales),
+    [sales]
+  )
+
   useEffect(() => {
-    if (searchParams.get("action") === "payment" && client && client.currentDebt > 0) {
+    if (searchParams.get("action") === "payment" && client && outstandingDebt > 0) {
       setPaymentTargetSale(null)
-      setAmount(String(client.currentDebt))
+      setAmount(String(outstandingDebt))
       setPaymentDialogOpen(true)
     }
-  }, [searchParams, client])
+  }, [searchParams, client, outstandingDebt])
 
   const handlePayment = async () => {
     const parsed = Number(amount)
@@ -172,8 +191,8 @@ export default function ClientDetailsPage() {
     if (!activeStore || !userProfile || !client) return
 
     const maxAmount = paymentTargetSale
-      ? Math.min(paymentTargetSale.debtAmount, client.currentDebt)
-      : client.currentDebt
+      ? paymentTargetSale.debtAmount
+      : outstandingDebt
 
     if (parsed > maxAmount) {
       toast.error(
@@ -197,6 +216,7 @@ export default function ClientDetailsPage() {
         user: userProfile,
         notes,
         saleId: paymentTargetSale?.id,
+        allocateStoreIds: authorizedStoreIds,
       })
       toast.success(
         paymentTargetSale
@@ -216,11 +236,6 @@ export default function ClientDetailsPage() {
     }
   }
 
-  const visibleSales = useMemo(
-    () => sales.filter(isSaleCountedInRevenue),
-    [sales]
-  )
-
   if (storeLoading || loading) {
     return (
       <div className="flex justify-center p-12">
@@ -230,7 +245,7 @@ export default function ClientDetailsPage() {
   }
   if (!client) return null
 
-  const isOverLimit = client.currentDebt > client.creditCeiling && client.creditCeiling > 0
+  const isOverLimit = client.creditCeiling > 0 && outstandingDebt > client.creditCeiling
 
   return (
     <div className="space-y-6">
@@ -259,7 +274,7 @@ export default function ClientDetailsPage() {
               <Edit className="w-4 h-4 mr-2" /> {t("clients.detail.edit")}
             </Link>
           </Button>
-          <Button onClick={openGlobalPayment} disabled={client.currentDebt <= 0}>
+          <Button onClick={openGlobalPayment} disabled={outstandingDebt <= 0}>
             <PlusCircle className="w-4 h-4 mr-2" /> {t("clients.detail.payment")}
           </Button>
           <Dialog open={paymentDialogOpen} onOpenChange={closePaymentDialog}>
@@ -285,13 +300,13 @@ export default function ClientDetailsPage() {
                       {formatAmount(
                         paymentTargetSale
                           ? paymentTargetSale.debtAmount
-                          : client.currentDebt
+                          : outstandingDebt
                       )}
                     </p>
                     {paymentTargetSale && (
                       <p className="mt-1 text-[10px] text-muted-foreground">
                         {t("clients.detail.clientDebtHint", {
-                          amount: formatAmount(client.currentDebt),
+                          amount: formatAmount(outstandingDebt),
                         })}
                       </p>
                     )}
@@ -363,9 +378,9 @@ export default function ClientDetailsPage() {
           </CardHeader>
           <CardContent className="min-w-0 p-4 pt-0">
             <div
-              className={`truncate text-xl font-headline font-bold ${client.currentDebt > 0 ? "text-destructive" : ""}`}
+              className={`truncate text-xl font-headline font-bold ${outstandingDebt > 0 ? "text-destructive" : ""}`}
             >
-              {formatAmount(client.currentDebt)}
+              {formatAmount(outstandingDebt)}
             </div>
             {isOverLimit && (
               <div className="flex items-center text-[10px] text-destructive mt-1 font-bold">
@@ -438,9 +453,7 @@ export default function ClientDetailsPage() {
                 <div className="space-y-4">
                   {visibleSales.map((sale) => {
                     const canRepayInvoice =
-                      sale.status === "COMPLETED" &&
-                      sale.debtAmount > 0 &&
-                      client.currentDebt > 0
+                      sale.status === "COMPLETED" && sale.debtAmount > 0
 
                     return (
                     <div
@@ -594,11 +607,7 @@ export default function ClientDetailsPage() {
                     {t("clients.detail.totalCreditGranted")}
                   </span>
                   <span className="text-3xl font-headline font-bold text-destructive">
-                    {formatAmount(
-                      sales
-                        .filter(isSaleCountedInRevenue)
-                        .reduce((acc, s) => acc + (s.debtAmount || 0), 0)
-                    )}
+                    {formatAmount(outstandingDebt)}
                   </span>
                 </div>
                 <div className="p-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center">
@@ -621,7 +630,7 @@ export default function ClientDetailsPage() {
                   </p>
                 </div>
                 <div className="text-4xl font-headline font-bold text-destructive">
-                  {formatAmount(client.currentDebt)}
+                  {formatAmount(outstandingDebt)}
                 </div>
               </div>
             </CardContent>

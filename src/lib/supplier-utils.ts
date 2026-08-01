@@ -1,4 +1,4 @@
-import type { CurrencyCode, Supplier } from "@/lib/types"
+import type { CurrencyCode, Purchase, Supplier, SupplierPayment } from "@/lib/types"
 import { CURRENCY_SELECT_OPTIONS } from "@/lib/constants/currencies"
 import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
@@ -20,6 +20,18 @@ export const SUPPLIER_TYPES = [
     description: "Partenaire international, devises étrangères",
   },
 ] as const
+
+/** Encours fournisseur = achats reçus − règlements (jamais négatif). */
+export function computeSupplierOutstandingDebt(
+  purchases: Purchase[],
+  payments: SupplierPayment[]
+): number {
+  const purchased = purchases
+    .filter((p) => p.status === "RECEIVED")
+    .reduce((acc, p) => acc + (p.totalFCFA || 0), 0)
+  const paid = payments.reduce((acc, p) => acc + (p.amount || 0), 0)
+  return Math.max(0, purchased - paid)
+}
 
 export function countSuppliersWithDebt(suppliers: Supplier[]): number {
   return suppliers.filter((s) => s.currentDebt > 0).length

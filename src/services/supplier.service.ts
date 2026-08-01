@@ -17,7 +17,10 @@ import { db } from "@/lib/firebase/client";
 import { Supplier, SupplierPayment, Purchase, UserProfile } from "@/lib/types";
 import { stripUndefined } from "@/lib/firestore-utils";
 import { CashService } from "./cash.service";
-import type { SupplierDeleteBlocker } from "@/lib/supplier-utils";
+import {
+  computeSupplierOutstandingDebt,
+  type SupplierDeleteBlocker,
+} from "@/lib/supplier-utils";
 
 const COLLECTION_NAME = "suppliers";
 const PAYMENTS_COLLECTION = "supplier_payments";
@@ -145,13 +148,31 @@ export const SupplierService = {
     storeId: string;
     user: UserProfile;
     notes?: string;
+    /** Boutiques pour recalculer l'encours après règlement */
+    allocateStoreIds?: string[];
   }) {
-    const { supplierId, amount, method, storeId, user, notes } = params;
+    const { supplierId, amount, method, storeId, user, notes, allocateStoreIds } = params;
+
+    if (!amount || amount <= 0) {
+      throw new Error("Montant invalide");
+    }
 
     const session = await CashService.getActiveSession(storeId);
     if (!session) {
       throw new Error("Veuillez ouvrir la caisse pour enregistrer un règlement.");
     }
+
+    const scopeStoreIds = [...new Set(allocateStoreIds?.length ? allocateStoreIds : [storeId])];
+    const [purchases, payments] = await Promise.all([
+      this.getSupplierPurchases(supplierId, scopeStoreIds),
+      this.getSupplierPayments(supplierId, scopeStoreIds),
+    ]);
+    const outstanding = computeSupplierOutstandingDebt(purchases, payments);
+    if (outstanding <= 0) {
+      throw new Error("Ce fournisseur n'a aucune dette à régler.");
+    }
+
+    const paidAmount = Math.min(amount, outstanding);
 
     return await runTransaction(db, async (transaction) => {
       const supplierRef = doc(db, COLLECTION_NAME, supplierId);
@@ -160,15 +181,20 @@ export const SupplierService = {
       if (!supplierSnap.exists()) throw new Error("Fournisseur introuvable");
 
       const supplier = supplierSnap.data() as Supplier;
-      const newDebt = Math.max(0, supplier.currentDebt - amount);
+      const apply = Math.min(paidAmount, outstanding);
+      if (apply <= 0) {
+        throw new Error("Montant invalide pour ce règlement.");
+      }
 
-      transaction.update(supplierRef, { currentDebt: newDebt });
+      transaction.update(supplierRef, {
+        currentDebt: Math.max(0, outstanding - apply),
+      });
 
       const paymentRef = doc(collection(db, PAYMENTS_COLLECTION));
       const payment: SupplierPayment = {
         id: paymentRef.id,
         supplierId,
-        amount,
+        amount: apply,
         method,
         timestamp: serverTimestamp(),
         storeId,
@@ -183,7 +209,7 @@ export const SupplierService = {
         storeId,
         type: "OUT",
         source: "PURCHASE_PAYMENT",
-        amount,
+        amount: apply,
         method,
         user,
         relatedDocId: paymentRef.id,
@@ -192,6 +218,21 @@ export const SupplierService = {
 
       return payment;
     });
+  },
+
+  /**
+   * Recalcule `currentDebt` = achats reçus − règlements.
+   */
+  async syncCurrentDebtFromLedger(supplierId: string, storeIds: string[]): Promise<number> {
+    const [purchases, payments] = await Promise.all([
+      this.getSupplierPurchases(supplierId, storeIds),
+      this.getSupplierPayments(supplierId, storeIds),
+    ]);
+    const outstanding = computeSupplierOutstandingDebt(purchases, payments);
+    await updateDoc(doc(db, COLLECTION_NAME, supplierId), {
+      currentDebt: outstanding,
+    });
+    return outstanding;
   },
 
   async getSupplierPayments(supplierId: string, storeIds: string[]) {

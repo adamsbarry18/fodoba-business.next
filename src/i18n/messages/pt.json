@@ -551,6 +551,7 @@
   "suppliers.statementAsOf": "Em {date}",
   "suppliers.paymentSuccess": "Pagamento registrado",
   "suppliers.paymentError": "Erro ao registrar pagamento",
+  "suppliers.amountExceedsDebt": "O valor não pode exceder {amount}",
   "suppliers.addSuccess": "Fornecedor adicionado com sucesso",
   "suppliers.newSubtitle": "Registro de um parceiro de abastecimento na base global.",
   "suppliers.sectionIdentification": "Identificação",

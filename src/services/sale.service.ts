@@ -440,6 +440,7 @@ export const SaleService = {
         saleRef,
         stripUndefined({
           status: "CANCELLED",
+          debtAmount: 0,
           cancelledAt: serverTimestamp(),
           cancelledBy: user.uid,
           cancelledByName: `${user.firstName} ${user.lastName}`,
