@@ -5,7 +5,7 @@ import type { NextConfig } from "next"
  * Pas de Vite ici — Next gère déjà le HMR / bundling applicatif.
  */
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: process.env.VERCEL ? undefined : "standalone",
   poweredByHeader: false,
   compress: true,
   reactStrictMode: true,
