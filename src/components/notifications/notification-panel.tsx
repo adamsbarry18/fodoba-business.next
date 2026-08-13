@@ -41,7 +41,8 @@ import {
   formatNotificationTime,
   type NotificationTab,
 } from "@/lib/notification-utils"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
+import { getDateLocale } from "@/i18n/get-date-locale"
 import { openDialogAfterMenuClose } from "@/lib/open-dialog-after-menu-close"
 
 interface NotificationPanelProps {
@@ -290,6 +291,8 @@ function NotificationItem({
   onDelete: (id: string) => Promise<void>
 }) {
   const t = useT()
+  const { locale } = useLocale()
+  const dateLocale = getDateLocale(locale)
   const [deleting, setDeleting] = useState(false)
   const meta = NOTIFICATION_TYPE_META[notification.type] ?? NOTIFICATION_TYPE_META.INFO
   const Icon = meta.Icon
@@ -364,7 +367,7 @@ function NotificationItem({
         <p className="text-xs leading-relaxed text-muted-foreground">{notification.message}</p>
         <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80">
           <Clock className="h-3 w-3" />
-          {formatNotificationTime(notification.timestamp)}
+          {formatNotificationTime(notification.timestamp, { locale: dateLocale, t })}
         </div>
       </div>
 

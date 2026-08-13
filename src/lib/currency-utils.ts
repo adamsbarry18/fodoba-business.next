@@ -19,6 +19,8 @@ export {
   DEFAULT_RATES,
   STORAGE_CURRENCY,
   getAmountFractionDigits,
+  getCurrencyNameKey,
+  getCurrencySelectLabel,
   getIsoCurrencyCode,
   getRateDecimals,
   isValidCurrencyCode,
@@ -155,9 +157,9 @@ export function formatRate(value: number, code: CurrencyCode): string {
 }
 
 export function validateRate(value: number): string | null {
-  if (!Number.isFinite(value)) return "Saisissez un nombre valide."
-  if (value <= 0) return "Le taux doit être strictement positif."
-  if (value > 1_000_000) return "Le taux semble trop élevé. Vérifiez la valeur."
+  if (!Number.isFinite(value)) return "currencies.validation.notFinite"
+  if (value <= 0) return "currencies.validation.positive"
+  if (value > 1_000_000) return "currencies.validation.tooHigh"
   return null
 }
 

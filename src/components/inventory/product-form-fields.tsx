@@ -18,7 +18,7 @@ import { FieldWithAdd } from "@/components/forms/field-with-add"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { computeInitialStockTotal, getRetailUnitsPerPack, PACKAGING_UNITS, RETAIL_UNITS } from "@/lib/product-utils"
+import { computeInitialStockTotal, getProductUnitLabel, getRetailUnitsPerPack, PACKAGING_UNITS, RETAIL_UNITS } from "@/lib/product-utils"
 import { Coins, ImageIcon, Scale, Tags, X, Info, Package, ShoppingBag } from "lucide-react"
 import { useT } from "@/i18n/context"
 import { cn } from "@/lib/utils"
@@ -75,8 +75,12 @@ export function ProductFormFields({
     [unitsPerPack, retailQtyFactor]
   )
 
-  const packLabel = packagingUnit?.trim() || t("inventory.form.packagingFallback")
-  const unitLabel = retailUnit?.trim() || t("inventory.form.unitFallback")
+  const packLabel = packagingUnit?.trim()
+    ? getProductUnitLabel(packagingUnit, t)
+    : t("inventory.form.packagingFallback")
+  const unitLabel = retailUnit?.trim()
+    ? getProductUnitLabel(retailUnit, t)
+    : t("inventory.form.unitFallback")
 
   const computedStock = useMemo(() => {
     if (!showStockFields) return null
@@ -311,7 +315,7 @@ export function ProductFormFields({
                         searchPlaceholder={t("inventory.form.retailUnitSearch")}
                         options={RETAIL_UNITS.map((unit) => ({
                           value: unit,
-                          label: unit,
+                          label: getProductUnitLabel(unit, t),
                         }))}
                       />
                     </FormControl>
@@ -346,7 +350,7 @@ export function ProductFormFields({
                           searchPlaceholder={t("inventory.form.packagingUnitSearch")}
                           options={PACKAGING_UNITS.map((unit) => ({
                             value: unit,
-                            label: unit,
+                            label: getProductUnitLabel(unit, t),
                           }))}
                         />
                       </FormControl>

@@ -28,7 +28,7 @@ import {
   applyRetailQuantityOut,
   type DecomposedStock,
 } from "@/lib/stock-utils";
-import { getRetailUnitsPerPack } from "@/lib/product-utils";
+import { getRetailUnitsPerPack, canonicalizeProductUnit } from "@/lib/product-utils";
 import {
   matchesAnySearchField,
   normalizeSearchText,
@@ -53,8 +53,10 @@ function buildProductPayload(
     barcode: data.barcode?.trim() || undefined,
     categoryId: data.categoryId,
     imageUrl: data.imageUrl || undefined,
-    packagingUnit: data.packagingUnit || undefined,
-    unit: data.unit,
+    packagingUnit: data.packagingUnit
+      ? canonicalizeProductUnit(data.packagingUnit)
+      : undefined,
+    unit: canonicalizeProductUnit(data.unit),
     unitsPerPack: data.unitsPerPack ?? 1,
     retailQtyFactor: data.retailQtyFactor ?? 1,
     conditionnement: data.conditionnement || undefined,

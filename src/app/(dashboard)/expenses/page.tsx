@@ -40,6 +40,7 @@ import { resolvePaymentMethodDisplay, PAYMENT_METHOD_OPTIONS } from "@/lib/const
 import {
   EXPENSE_CATEGORIES,
   filterExpenses,
+  getExpenseCategoryLabel,
   getExpenseStats,
   toExpenseDate,
   type ExpenseCategoryFilter,
@@ -153,7 +154,7 @@ export default function ExpensesPage() {
       const date = toExpenseDate(e.timestamp)
       return {
         [t("expenses.colDate")]: date ? format(date, "dd/MM/yyyy HH:mm") : "-",
-        [t("expenses.colCategory")]: e.category,
+        [t("expenses.colCategory")]: getExpenseCategoryLabel(e.category, t),
         Label: e.label,
         [t("expenses.colAmount")]: e.amount,
         [t("expenses.colMethod")]: resolvePaymentMethodDisplay(e.method, (key) => t(key)),
@@ -272,7 +273,9 @@ export default function ExpensesPage() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("expenses.statTopCategory")}
               </p>
-              <p className="text-sm font-bold">{stats.topCategory}</p>
+              <p className="text-sm font-bold">
+                {getExpenseCategoryLabel(stats.topCategory, t)}
+              </p>
               <p className="text-[10px] text-muted-foreground">
                 {formatAmount(stats.topCategoryAmount)}
               </p>
@@ -331,7 +334,7 @@ export default function ExpensesPage() {
               <SelectItem value="all">{t("expenses.filterCategoryAll")}</SelectItem>
               {EXPENSE_CATEGORIES.map((c) => (
                 <SelectItem key={c} value={c}>
-                  {c}
+                  {getExpenseCategoryLabel(c, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -436,7 +439,7 @@ export default function ExpensesPage() {
                             <div className="flex flex-col gap-0.5">
                               <span className="flex items-center gap-1.5 text-sm font-semibold">
                                 <Tag className="h-3.5 w-3.5 text-primary" />
-                                {e.category}
+                                {getExpenseCategoryLabel(e.category, t)}
                               </span>
                               <span className="text-xs text-muted-foreground">{e.label}</span>
                               {e.notes && (

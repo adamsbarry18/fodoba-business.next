@@ -17,6 +17,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useT } from "@/i18n/context"
 import { SUPPLIER_CURRENCIES } from "@/lib/supplier-utils"
+import { getCurrencySelectLabel } from "@/lib/constants/currencies"
 
 export default function EditSupplierPage() {
   const router = useRouter()
@@ -165,7 +166,7 @@ export default function EditSupplierPage() {
                         <SelectContent>
                           {SUPPLIER_CURRENCIES.map((c) => (
                             <SelectItem key={c.value} value={c.value}>
-                              {c.label}
+                              {getCurrencySelectLabel(c.value, t)}
                             </SelectItem>
                           ))}
                         </SelectContent>

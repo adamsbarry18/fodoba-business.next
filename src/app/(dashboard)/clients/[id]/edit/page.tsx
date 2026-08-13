@@ -228,10 +228,10 @@ export default function EditClientPage() {
                             className="text-[10px]"
                           />
                           <span className="text-sm font-semibold">
-                            {t(`clients.types.${clientType.value}.label`)}
+                            {t(clientType.labelKey)}
                           </span>
                           <span className="text-[11px] text-muted-foreground">
-                            {t(`clients.types.${clientType.value}.description`)}
+                            {t(clientType.descriptionKey)}
                           </span>
                         </button>
                       ))}
@@ -266,10 +266,10 @@ export default function EditClientPage() {
                             className="text-[10px]"
                           />
                           <span className="text-sm font-semibold">
-                            {t(`clients.status.${clientStatus.value}.label`)}
+                            {t(clientStatus.labelKey)}
                           </span>
                           <span className="text-[11px] text-muted-foreground">
-                            {t(`clients.status.${clientStatus.value}.description`)}
+                            {t(clientStatus.descriptionKey)}
                           </span>
                         </button>
                       ))}

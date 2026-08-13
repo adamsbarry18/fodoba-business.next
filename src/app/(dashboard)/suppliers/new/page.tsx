@@ -42,7 +42,7 @@ import Link from "next/link"
 import { useCreateReturn } from "@/hooks/use-create-return"
 import { ENTITY_ROUTES, readReturnContext } from "@/lib/navigation/return-to"
 import { SUPPLIER_CURRENCIES, SUPPLIER_TYPES } from "@/lib/supplier-utils"
-import { STORAGE_CURRENCY } from "@/lib/constants/currencies"
+import { STORAGE_CURRENCY, getCurrencySelectLabel } from "@/lib/constants/currencies"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { cn } from "@/lib/utils"
 import { useT } from "@/i18n/context"
@@ -169,8 +169,8 @@ export default function NewSupplierPage() {
                             }
                             className="text-[10px]"
                           />
-                          <span className="text-sm font-semibold">{typeOption.label}</span>
-                          <span className="text-[11px] text-muted-foreground">{typeOption.description}</span>
+                          <span className="text-sm font-semibold">{t(typeOption.labelKey)}</span>
+                          <span className="text-[11px] text-muted-foreground">{t(typeOption.descriptionKey)}</span>
                         </button>
                       ))}
                     </div>
@@ -258,7 +258,7 @@ export default function NewSupplierPage() {
                         <SelectContent className="rounded-xl">
                           {SUPPLIER_CURRENCIES.map((c) => (
                             <SelectItem key={c.value} value={c.value}>
-                              {c.label}
+                              {getCurrencySelectLabel(c.value, t)}
                             </SelectItem>
                           ))}
                         </SelectContent>

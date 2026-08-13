@@ -1,37 +1,40 @@
 import { z } from "zod"
 import type { CurrencyCode } from "@/lib/types"
-import { CURRENCY_META, isValidCurrencyCode } from "@/lib/constants/currencies"
+import { isValidCurrencyCode } from "@/lib/constants/currencies"
 import type { LandedCostOutput } from "@/lib/calculations"
 
 /** Devises d'origine usuelles pour un import / achat. */
-export const PURCHASE_CURRENCIES = (
-  ["USD", "EUR", "GNF", "FCFA"] as const satisfies readonly CurrencyCode[]
-).map((code) => ({
-  value: code,
-  label:
-    code === "FCFA"
-      ? "FCFA (référence)"
-      : CURRENCY_META[code].symbol === code
-        ? code
-        : `${code} (${CURRENCY_META[code].symbol})`,
-}))
+export const PURCHASE_CURRENCY_CODES = [
+  "USD",
+  "EUR",
+  "GNF",
+  "FCFA",
+] as const satisfies readonly CurrencyCode[]
 
-export const TARGET_CURRENCIES = (
-  ["FCFA", "GNF"] as const satisfies readonly CurrencyCode[]
-).map((code) => ({
-  value: code,
-  label: code === "FCFA" ? "FCFA (référence)" : code,
-}))
+export const TARGET_CURRENCY_CODES = [
+  "FCFA",
+  "GNF",
+] as const satisfies readonly CurrencyCode[]
 
-export const LandedCostFormSchema = z.object({
-  purchasePrice: z.coerce.number().min(0.01, "Prix unitaire requis"),
-  purchaseCurrency: z.string().min(1),
-  transportFees: z.coerce.number().min(0),
-  customsDutyPercentage: z.coerce.number().min(0).max(100),
-  otherFees: z.coerce.number().min(0),
-  targetCurrency: z.string().min(1),
-  exchangeRateToTargetCurrency: z.coerce.number().min(0.0001, "Taux invalide"),
-})
+/** @deprecated Utiliser PURCHASE_CURRENCY_CODES + getCurrencySelectLabel */
+export const PURCHASE_CURRENCIES = PURCHASE_CURRENCY_CODES.map((code) => ({ value: code }))
+
+/** @deprecated Utiliser TARGET_CURRENCY_CODES + getCurrencySelectLabel */
+export const TARGET_CURRENCIES = TARGET_CURRENCY_CODES.map((code) => ({ value: code }))
+
+export function createLandedCostFormSchema(t: (key: string) => string) {
+  return z.object({
+    purchasePrice: z.coerce.number().min(0.01, t("landedCost.validation.unitPriceRequired")),
+    purchaseCurrency: z.string().min(1),
+    transportFees: z.coerce.number().min(0),
+    customsDutyPercentage: z.coerce.number().min(0).max(100),
+    otherFees: z.coerce.number().min(0),
+    targetCurrency: z.string().min(1),
+    exchangeRateToTargetCurrency: z.coerce.number().min(0.0001, t("landedCost.validation.invalidRate")),
+  })
+}
+
+export const LandedCostFormSchema = createLandedCostFormSchema((key) => key)
 
 export type LandedCostFormValues = z.infer<typeof LandedCostFormSchema>
 

@@ -2,7 +2,7 @@ import type { SaleItem, Product, PriceTier } from "@/lib/types"
 import type { PosPaymentMode } from "@/lib/constants/payment-methods"
 import type { LucideIcon } from "lucide-react"
 import { Wallet, HandCoins, CreditCard, Split } from "lucide-react"
-import { normalizeProduct } from "@/lib/product-utils"
+import { getProductUnitLabelFr, normalizeProduct } from "@/lib/product-utils"
 import { getSaleItemRetailQuantity as computeRetailQuantity } from "@/lib/stock-utils"
 
 export function getCartLineKey(productId: string, priceTier: PriceTier = "retail"): string {
@@ -21,7 +21,7 @@ export function hasWholesalePrice(product: Product): boolean {
   return getProductPriceForTier(product, "wholesale") > 0
 }
 
-/** Unité affichée pour la quantité au panier / ticket (Pièce vs Carton…) */
+/** Unité persistée pour la quantité au panier / ticket (`piece` vs `carton`…). */
 export function getSaleQuantityUnit(product: Product, tier: PriceTier): string {
   const normalized = normalizeProduct(product)
   if (
@@ -94,7 +94,7 @@ export function formatSaleItemName(item: SaleItem, wholesaleSuffix = " (Engros)"
 
 export function formatSaleItemQuantity(item: SaleItem): string {
   if (item.saleUnit) {
-    return `${item.quantity} ${item.saleUnit}`
+    return `${item.quantity} ${getProductUnitLabelFr(item.saleUnit)}`
   }
   return String(item.quantity)
 }

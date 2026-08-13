@@ -22,6 +22,7 @@ import { useCurrency } from "@/hooks/use-currency"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT } from "@/i18n/context"
+import { getProductUnitLabel } from "@/lib/product-utils"
 
 const PAGE_SIZE = 50
 
@@ -171,7 +172,7 @@ export default function InventoryReportPage() {
                         <TableCell className="text-center font-bold">
                           {item.stock}{" "}
                           <span className="text-[10px] font-normal text-muted-foreground">
-                            {item.unit}
+                            {getProductUnitLabel(item.unit, t)}
                           </span>
                           {item.stock <= 0 && (
                             <span title={t("reports.inventory.outOfStock")}>

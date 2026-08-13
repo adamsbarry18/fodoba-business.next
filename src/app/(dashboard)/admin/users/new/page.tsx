@@ -282,14 +282,14 @@ export default function NewUserPage() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-semibold">
-                                  {t(`users.roles.${role}.label`)}
+                                  {t(meta.labelKey)}
                                 </p>
                                 <StatusBadge tone={meta.tone} className="text-[9px]">
-                                  {t(`users.roles.${role}.short`)}
+                                  {t(meta.shortLabelKey)}
                                 </StatusBadge>
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                {t(`users.roles.${role}.description`)}
+                                {t(meta.descriptionKey)}
                               </p>
                             </div>
                           </button>

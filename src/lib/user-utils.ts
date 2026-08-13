@@ -5,9 +5,9 @@ import type { BadgeTone } from "@/lib/badge-tones"
 
 export type RoleMeta = {
   value: Role
-  label: string
-  shortLabel: string
-  description: string
+  labelKey: string
+  shortLabelKey: string
+  descriptionKey: string
   tone: BadgeTone
   icon: LucideIcon
 }
@@ -17,25 +17,25 @@ export const ROLE_ORDER: Role[] = ["admin", "manager", "seller"]
 export const ROLE_META: Record<Role, RoleMeta> = {
   admin: {
     value: "admin",
-    label: "Administrateur",
-    shortLabel: "Admin",
-    description: "Accès total : boutiques, utilisateurs, devises et rapports consolidés.",
+    labelKey: "users.roles.admin.label",
+    shortLabelKey: "users.roles.admin.short",
+    descriptionKey: "users.roles.admin.description",
     tone: "violet",
     icon: Shield,
   },
   manager: {
     value: "manager",
-    label: "Gérant",
-    shortLabel: "Gérant",
-    description: "Gestion des boutiques assignées : stock, achats, caisse et rapports locaux.",
+    labelKey: "users.roles.manager.label",
+    shortLabelKey: "users.roles.manager.short",
+    descriptionKey: "users.roles.manager.description",
     tone: "info",
     icon: Store,
   },
   seller: {
     value: "seller",
-    label: "Vendeur",
-    shortLabel: "Vendeur",
-    description: "Caisse, ventes et consultation du stock des boutiques autorisées.",
+    labelKey: "users.roles.seller.label",
+    shortLabelKey: "users.roles.seller.short",
+    descriptionKey: "users.roles.seller.description",
     tone: "success",
     icon: UserRound,
   },

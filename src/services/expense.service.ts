@@ -12,6 +12,7 @@ import {
 import { db } from "@/lib/firebase/client";
 import { Expense, UserProfile } from "@/lib/types";
 import { CashService } from "./cash.service";
+import { canonicalizeExpenseCategory } from "@/lib/expense-utils";
 
 const COLLECTION_NAME = "expenses";
 
@@ -36,7 +37,7 @@ export const ExpenseService = {
       const expense: Expense = {
         id: expenseRef.id,
         storeId,
-        category,
+        category: canonicalizeExpenseCategory(category),
         label,
         amount,
         method,

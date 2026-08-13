@@ -3,6 +3,7 @@ import type { PriceTier } from "@/lib/types"
 import {
   computeInitialStockTotal,
   decomposeStock,
+  getProductUnitLabelFr,
   getRetailUnitsPerPack,
   normalizeProduct,
 } from "@/lib/product-utils"
@@ -133,11 +134,11 @@ export function applySaleItemToDecomposedStock(
   const error = validateSaleItemAgainstStock(stock, product, item)
   if (error === "INSUFFICIENT_RETAIL") {
     throw new Error(
-      `Stock insuffisant pour ${item.name}. Disponible : ${stock.quantity} ${normalized.unit}`
+      `Stock insuffisant pour ${item.name}. Disponible : ${stock.quantity} ${getProductUnitLabelFr(normalized.unit)}`
     )
   }
   if (error === "INSUFFICIENT_PACKAGING") {
-    const unit = normalized.packagingUnit || normalized.unit
+    const unit = getProductUnitLabelFr(normalized.packagingUnit || normalized.unit)
     throw new Error(
       `Stock conditionnement insuffisant pour ${item.name}. Disponible : ${stock.packagingQty} ${unit}`
     )
@@ -290,19 +291,22 @@ export function applyRetailQuantityIn(
 export function formatDecomposedStockLabel(
   stock: DecomposedStock,
   product: Product,
-  separator = " + "
+  separator = " + ",
+  formatUnit: (unit: string | undefined) => string = (unit) => unit ?? ""
 ): string {
   const normalized = normalizeProduct(product)
   const parts: string[] = []
+  const packLabel = formatUnit(normalized.packagingUnit)
+  const unitLabel = formatUnit(normalized.unit)
 
   if (normalized.packagingUnit && normalized.unitsPerPack > 1 && stock.packagingQty > 0) {
-    parts.push(`${stock.packagingQty} ${normalized.packagingUnit}`)
+    parts.push(`${stock.packagingQty} ${packLabel}`)
   }
   if (stock.detailQty > 0) {
-    parts.push(`${stock.detailQty} ${normalized.unit}`)
+    parts.push(`${stock.detailQty} ${unitLabel}`)
   }
   if (parts.length === 0) {
-    return `0 ${normalized.unit}`
+    return `0 ${unitLabel}`
   }
   return parts.join(separator)
 }

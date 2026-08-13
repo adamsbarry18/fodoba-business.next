@@ -51,6 +51,8 @@ import { ENTITY_ROUTES } from "@/lib/navigation/return-to"
 import { BarcodeScanField } from "@/components/barcode/barcode-scan-field"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { useT } from "@/i18n/context"
+import { filterActiveStores } from "@/lib/store-utils"
+import { getProductUnitLabel } from "@/lib/product-utils"
 
 type TransferFormValues = {
   productId: string
@@ -64,6 +66,7 @@ export default function NewTransferPage() {
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
   const t = useT()
+  const formatUnit = (unit?: string) => getProductUnitLabel(unit, t)
 
   const transferFormSchema = useMemo(
     () =>
@@ -119,7 +122,7 @@ export default function NewTransferPage() {
         ])
         if (cancelled) return
         setProducts(prodResult.products)
-        setStores(storeResult.stores.filter((s) => s.active))
+        setStores(filterActiveStores(storeResult.stores))
 
         await applyReturnSelection(
           ENTITY_ROUTES.product.param,
@@ -377,7 +380,9 @@ export default function NewTransferPage() {
                           </FormControl>
                           {selectedProduct && (
                             <FormDescription className="text-[11px]">
-                              {t("stockTransfer.unitLabel", { unit: selectedProduct.unit })}
+                              {t("stockTransfer.unitLabel", {
+                                unit: formatUnit(selectedProduct.unit),
+                              })}
                             </FormDescription>
                           )}
                           <FormMessage />
@@ -451,7 +456,7 @@ export default function NewTransferPage() {
                             {loadingStock ? "…" : sourceStock}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {selectedProduct.unit}
+                            {formatUnit(selectedProduct.unit)}
                           </p>
                         </div>
                         <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
@@ -476,7 +481,7 @@ export default function NewTransferPage() {
                         >
                           {t("stockTransfer.transferDelta", {
                             quantity,
-                            unit: selectedProduct.unit,
+                            unit: formatUnit(selectedProduct.unit),
                           })}
                         </StatusBadge>
                       )}

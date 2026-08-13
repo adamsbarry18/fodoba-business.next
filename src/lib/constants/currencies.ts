@@ -31,7 +31,7 @@ export const CURRENCY_ORDER: CurrencyCode[] = [...CURRENCY_CODES]
 
 export type CurrencyMeta = {
   code: CurrencyCode
-  label: string
+  labelKey: string
   symbol: string
   tone: BadgeTone
   icon: LucideIcon
@@ -52,7 +52,7 @@ function meta(
 export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
   FCFA: meta({
     code: "FCFA",
-    label: "Franc CFA",
+    labelKey: "currencies.name.FCFA",
     symbol: "FCFA",
     tone: "primary-soft",
     icon: CircleDollarSign,
@@ -61,7 +61,7 @@ export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
   }),
   GNF: meta({
     code: "GNF",
-    label: "Franc guinéen",
+    labelKey: "currencies.name.GNF",
     symbol: "GNF",
     tone: "warning",
     icon: Coins,
@@ -70,7 +70,7 @@ export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
   }),
   USD: meta({
     code: "USD",
-    label: "Dollar US",
+    labelKey: "currencies.name.USD",
     symbol: "$",
     tone: "success",
     icon: DollarSign,
@@ -79,7 +79,7 @@ export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
   }),
   EUR: meta({
     code: "EUR",
-    label: "Euro",
+    labelKey: "currencies.name.EUR",
     symbol: "€",
     tone: "info",
     icon: Euro,
@@ -88,20 +88,30 @@ export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
   }),
 }
 
-/** Options de select (fournisseurs, achats, etc.). */
+/** Options de select (fournisseurs, achats, etc.) — libellé via `getCurrencySelectLabel`. */
 export const CURRENCY_SELECT_OPTIONS: {
   value: CurrencyCode
-  label: string
-}[] = CURRENCY_ORDER.map((code) => {
-  const item = CURRENCY_META[code]
+  symbol: string
+}[] = CURRENCY_ORDER.map((code) => ({
+  value: code,
+  symbol: CURRENCY_META[code].symbol,
+}))
+
+export function getCurrencyNameKey(code: CurrencyCode): string {
+  return CURRENCY_META[code].labelKey
+}
+
+export function getCurrencySelectLabel(
+  code: CurrencyCode,
+  t: (key: string, values?: Record<string, string>) => string
+): string {
   if (code === STORAGE_CURRENCY) {
-    return { value: code, label: `${code} (Référence)` }
+    return t("currencies.selectReference", { code })
   }
-  if (item.symbol === code) {
-    return { value: code, label: code }
-  }
-  return { value: code, label: `${code} (${item.symbol})` }
-})
+  const item = CURRENCY_META[code]
+  if (item.symbol === code) return code
+  return `${code} (${item.symbol})`
+}
 
 export function isValidCurrencyCode(code: string): code is CurrencyCode {
   return (CURRENCY_CODES as readonly string[]).includes(code)

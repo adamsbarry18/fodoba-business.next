@@ -24,7 +24,7 @@ import {
   applyRetailQuantityIn,
   applyRetailQuantityOut,
 } from "@/lib/stock-utils";
-import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils";
+import { getProductUnitLabelFr, getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils";
 
 const MOVEMENTS_COLLECTION = "inventory_movements";
 const STOCKS_COLLECTION = "stocks";
@@ -272,7 +272,7 @@ export const InventoryService = {
       if (packagingDelta !== 0) {
         const newPackaging = previous.packagingQty + packagingDelta
         if (newPackaging < 0) {
-          const unit = normalized.packagingUnit || normalized.unit
+          const unit = getProductUnitLabelFr(normalized.packagingUnit || normalized.unit)
           throw new Error(
             `Stock conditionnement insuffisant. Disponible : ${previous.packagingQty} ${unit}`
           )

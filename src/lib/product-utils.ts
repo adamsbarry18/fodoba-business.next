@@ -1,51 +1,133 @@
 import type { Product } from "@/lib/types"
 import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
+import frMessages from "@/i18n/messages/fr.json"
+import { getNestedMessage, nestMessages } from "@/i18n/nest-messages"
 
-export const PRODUCT_UNITS = [
-  { value: "Kg", label: "Kilogramme (Kg)" },
-  { value: "Litre", label: "Litre (L)" },
-  { value: "Pièce", label: "Pièce (Pce)" },
-  { value: "Sac", label: "Sac" },
-  { value: "Carton", label: "Carton" },
-  { value: "Bouteille", label: "Bouteille" },
-  { value: "Boîte", label: "Boîte" },
-  { value: "Paquet", label: "Paquet" },
+const nestedFrMessages = nestMessages(frMessages)
+
+export const PRODUCT_UNIT_DEFS = [
+  { id: "piece", labelKey: "inventory.units.piece" },
+  { id: "kg", labelKey: "inventory.units.kg" },
+  { id: "liter", labelKey: "inventory.units.liter" },
+  { id: "bag", labelKey: "inventory.units.bag" },
+  { id: "carton", labelKey: "inventory.units.carton" },
+  { id: "bottle", labelKey: "inventory.units.bottle" },
+  { id: "box", labelKey: "inventory.units.box" },
+  { id: "pack", labelKey: "inventory.units.pack" },
+  { id: "crate", labelKey: "inventory.units.crate" },
+  { id: "jerrycan", labelKey: "inventory.units.jerrycan" },
+  { id: "sachet", labelKey: "inventory.units.sachet" },
+  { id: "flask", labelKey: "inventory.units.flask" },
+  { id: "bar", labelKey: "inventory.units.bar" },
+  { id: "can", labelKey: "inventory.units.can" },
+  { id: "roll", labelKey: "inventory.units.roll" },
 ] as const
 
-/**
- * Unités engros / conditionnement — basées sur l’usage réel stock FODOBA
- * (carton, paquet, sac, pack, casier, bidon…).
- */
+export type ProductUnitId = (typeof PRODUCT_UNIT_DEFS)[number]["id"]
+
+const PRODUCT_UNIT_LABEL_KEYS: Record<string, string> = Object.fromEntries(
+  PRODUCT_UNIT_DEFS.map((unit) => [unit.id, unit.labelKey])
+)
+
+const PRODUCT_UNIT_ALIASES: Record<string, string> = {
+  piece: "piece",
+  kg: "kg",
+  liter: "liter",
+  litre: "liter",
+  bag: "bag",
+  carton: "carton",
+  bottle: "bottle",
+  box: "box",
+  pack: "pack",
+  crate: "crate",
+  jerrycan: "jerrycan",
+  sachet: "sachet",
+  flask: "flask",
+  bar: "bar",
+  can: "can",
+  roll: "roll",
+  Pièce: "piece",
+  Piece: "piece",
+  Kg: "kg",
+  KG: "kg",
+  Kilogramme: "kg",
+  Litre: "liter",
+  Liter: "liter",
+  Sac: "bag",
+  Carton: "carton",
+  Bouteille: "bottle",
+  Boîte: "box",
+  Boite: "box",
+  Paquet: "pack",
+  Pack: "pack",
+  Casier: "crate",
+  Bidon: "jerrycan",
+  Sachet: "sachet",
+  Flacon: "flask",
+  Tablette: "bar",
+  Cannette: "can",
+  Rouleau: "roll",
+}
+
+for (const [from, to] of Object.entries({ ...PRODUCT_UNIT_ALIASES })) {
+  PRODUCT_UNIT_ALIASES[from.toLowerCase()] = to
+}
+
+export const PRODUCT_UNITS = PRODUCT_UNIT_DEFS.map((unit) => ({
+  value: unit.id,
+  labelKey: unit.labelKey,
+}))
+
+export function canonicalizeProductUnit(unit: string | undefined | null): string {
+  const trimmed = unit?.trim() ?? ""
+  if (!trimmed) return trimmed
+  return PRODUCT_UNIT_ALIASES[trimmed] ?? PRODUCT_UNIT_ALIASES[trimmed.toLowerCase()] ?? trimmed
+}
+
+export function getProductUnitLabel(
+  unit: string | undefined | null,
+  t: (key: string) => string
+): string {
+  const canonical = canonicalizeProductUnit(unit)
+  const key = PRODUCT_UNIT_LABEL_KEYS[canonical]
+  return key ? t(key) : (unit?.trim() ?? "")
+}
+
+export function getProductUnitLabelFr(unit: string | undefined | null): string {
+  return getProductUnitLabel(unit, (key) => getNestedMessage(nestedFrMessages, key) ?? key)
+}
+
+export const DEFAULT_RETAIL_UNIT = "piece" as const
+
+
 export const PACKAGING_UNITS = [
-  "Carton",
-  "Paquet",
-  "Sac",
-  "Pack",
-  "Casier",
-  "Bidon",
-  "Boîte",
-  "Sachet",
-  "Flacon",
-  "Tablette",
-  "Cannette",
-  "Rouleau",
+  "carton",
+  "pack",
+  "bag",
+  "crate",
+  "jerrycan",
+  "box",
+  "sachet",
+  "flask",
+  "bar",
+  "can",
+  "roll",
 ] as const
 
-/**
- * Unités détail / vente à l’unité — basées sur l’usage réel stock FODOBA.
- */
+
 export const RETAIL_UNITS = [
-  "Pièce",
-  "Bidon",
-  "Boîte",
-  "Kg",
-  "Sachet",
-  "Cannette",
-  "Flacon",
-  "Tablette",
-  "Bouteille",
-  "Litre",
+  "piece",
+  "jerrycan",
+  "box",
+  "kg",
+  "sachet",
+  "can",
+  "flask",
+  "bar",
+  "bottle",
+  "liter",
 ] as const
+
 
 export type StockFilter = "all" | "low" | "out"
 
@@ -70,7 +152,10 @@ export function normalizeProduct(product: Product): Product {
     unitsPerPack: product.unitsPerPack ?? 1,
     retailQtyFactor: product.retailQtyFactor ?? 1,
     wholesalePriceFCFA: product.wholesalePriceFCFA ?? 0,
-    packagingUnit: product.packagingUnit ?? product.conditionnement ?? "",
+    packagingUnit: canonicalizeProductUnit(
+      product.packagingUnit ?? product.conditionnement ?? ""
+    ),
+    unit: canonicalizeProductUnit(product.unit),
   }
 }
 
@@ -147,21 +232,24 @@ export function decomposeStock(totalRetail: number, unitsPerPack: number) {
 export function formatStockBreakdown(
   stock: number,
   product: Product,
-  separator = " + "
+  separator = " + ",
+  formatUnit: (unit: string | undefined) => string = (unit) => unit ?? ""
 ): string | null {
   const normalized = normalizeProduct(product)
   const ratio = normalized.unitsPerPack
   if (ratio <= 1 || !normalized.packagingUnit) return null
 
   const { packs, loose } = decomposeStock(stock, ratio)
+  const packLabel = formatUnit(normalized.packagingUnit)
+  const unitLabel = formatUnit(normalized.unit)
   const parts: string[] = []
   if (packs > 0) {
-    parts.push(`${packs} ${normalized.packagingUnit}`)
+    parts.push(`${packs} ${packLabel}`)
   }
   if (loose > 0) {
-    parts.push(`${loose} ${normalized.unit}`)
+    parts.push(`${loose} ${unitLabel}`)
   }
-  if (parts.length === 0) return `0 ${normalized.unit}`
+  if (parts.length === 0) return `0 ${unitLabel}`
   return parts.join(separator)
 }
 

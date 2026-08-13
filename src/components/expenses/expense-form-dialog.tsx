@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 import { Loader2, Save, Wallet, AlertTriangle } from "lucide-react"
-import { EXPENSE_CATEGORIES } from "@/lib/expense-utils"
+import { EXPENSE_CATEGORIES, getExpenseCategoryLabel } from "@/lib/expense-utils"
 import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
 import type { UserProfile } from "@/lib/types"
 import { useT } from "@/i18n/context"
@@ -169,7 +169,7 @@ export function ExpenseFormDialog({
                         <SelectContent className="rounded-xl">
                           {EXPENSE_CATEGORIES.map((c) => (
                             <SelectItem key={c} value={c}>
-                              {c}
+                              {getExpenseCategoryLabel(c, t)}
                             </SelectItem>
                           ))}
                         </SelectContent>

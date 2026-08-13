@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { useT } from "@/i18n/context"
 import {
   clearLegacyActiveStoreKey,
+  filterActiveStores,
   readSavedActiveStoreId,
   resolveActiveStore,
   writeSavedActiveStoreId,
@@ -93,8 +94,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (loadGenerationRef.current !== generation) return
 
-        setAvailableStores(stores)
-        applyStoreSelection(profile, stores)
+        const selectableStores = filterActiveStores(stores)
+        setAvailableStores(selectableStores)
+        applyStoreSelection(profile, selectableStores)
       } catch (error) {
         if (loadGenerationRef.current !== generation) return
         console.error("Erreur lors du chargement des boutiques:", error)

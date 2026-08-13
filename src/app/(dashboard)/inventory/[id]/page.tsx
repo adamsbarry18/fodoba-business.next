@@ -39,7 +39,7 @@ import {
   formatDecomposedStockLabel,
   type DecomposedStock,
 } from "@/lib/stock-utils"
-import { getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils"
+import { getProductUnitLabel, getRetailUnitsPerPack, normalizeProduct } from "@/lib/product-utils"
 import { ProductExpirationDisplay } from "@/components/inventory/product-expiration-display"
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper"
 import { cn } from "@/lib/utils"
@@ -217,6 +217,9 @@ export default function ProductDetailsPage() {
   if (!product) return null
 
   const normalized = normalizeProduct(product)
+  const formatUnit = (unit?: string) => getProductUnitLabel(unit, t)
+  const unitLabel = formatUnit(normalized.unit)
+  const packLabel = formatUnit(normalized.packagingUnit)
 
   const cardClassName =
     "overflow-hidden rounded-[32px] border-none bg-white shadow-sm ring-1 ring-gray-100"
@@ -260,7 +263,7 @@ export default function ProductDetailsPage() {
                 {product.sku}
               </Badge>
               <span className="text-sm font-medium text-gray-400">•</span>
-              <span className="text-sm font-medium text-gray-400">{product.unit}</span>
+              <span className="text-sm font-medium text-gray-400">{unitLabel}</span>
             </div>
           </div>
         </div>
@@ -338,8 +341,8 @@ export default function ProductDetailsPage() {
                       <span className={metaValueClassName}>
                         {t("inventory.detail.unitsPerPack", {
                           count: normalized.unitsPerPack,
-                          unit: product.unit,
-                          packaging: normalized.packagingUnit,
+                          unit: unitLabel,
+                          packaging: packLabel,
                         })}
                       </span>
                     </div>
@@ -465,7 +468,8 @@ export default function ProductDetailsPage() {
               const decomposedLabel = formatDecomposedStockLabel(
                 stockRecord,
                 product,
-                t("inventory.stockBreakdownSeparator")
+                t("inventory.stockBreakdownSeparator"),
+                formatUnit
               )
               return (
                 <div
@@ -502,7 +506,7 @@ export default function ProductDetailsPage() {
                         <p className="mt-1 text-[10px] text-gray-400">
                           {t("inventory.stockTotalUnits", {
                             count: qty,
-                            unit: product.unit,
+                            unit: unitLabel,
                           })}
                         </p>
                       </>
@@ -510,7 +514,7 @@ export default function ProductDetailsPage() {
                       <div className="font-headline text-2xl font-bold text-gray-900">
                         {qty}{" "}
                         <span className="ml-1 text-[10px] font-bold uppercase text-gray-400">
-                          {product.unit}
+                          {unitLabel}
                         </span>
                       </div>
                     )}
@@ -547,7 +551,7 @@ export default function ProductDetailsPage() {
                 const hasPackaging =
                   !!normalized.packagingUnit && normalized.unitsPerPack > 1
                 const packagingUnit =
-                  normalized.packagingUnit || t("inventory.form.packagingFallback")
+                  packLabel || t("inventory.form.packagingFallback")
                 const draft = buildDecomposedStock(
                   hasPackaging ? draftPackaging : 0,
                   hasPackaging ? draftDetail : draftDetail,
@@ -628,16 +632,17 @@ export default function ProductDetailsPage() {
                             ? formatDecomposedStockLabel(
                                 record,
                                 product,
-                                t("inventory.stockBreakdownSeparator")
+                                t("inventory.stockBreakdownSeparator"),
+                                formatUnit
                               )
-                            : `${record.quantity} ${product.unit}`}
+                            : `${record.quantity} ${unitLabel}`}
                         </p>
                       </div>
                       {hasPackaging && (
                         <p className="text-xs text-muted-foreground">
                           {t("inventory.stockTotalUnits", {
                             count: record.quantity,
-                            unit: product.unit,
+                            unit: unitLabel,
                           })}
                         </p>
                       )}
@@ -663,7 +668,7 @@ export default function ProductDetailsPage() {
                             ? t("inventory.form.detailStock")
                             : t("inventory.detail.stockQuantity")
                         }
-                        unit={product.unit}
+                        unit={unitLabel}
                         value={draftDetail}
                         onChange={setDraftDetail}
                       />
@@ -675,10 +680,11 @@ export default function ProductDetailsPage() {
                           stock: formatDecomposedStockLabel(
                             draft,
                             product,
-                            t("inventory.stockBreakdownSeparator")
+                            t("inventory.stockBreakdownSeparator"),
+                            formatUnit
                           ),
                           count: draft.quantity,
-                          unit: product.unit,
+                          unit: unitLabel,
                         })}
                       </p>
                     )}

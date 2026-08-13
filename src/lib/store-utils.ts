@@ -30,6 +30,16 @@ export function getStoreStatusTone(active: boolean): BadgeTone {
   return active ? "success" : "destructive"
 }
 
+/** Boutique opérationnelle (non suspendue). `active` absent = actif (docs legacy). */
+export function isStoreActive(store: Pick<Store, "active">): boolean {
+  return store.active !== false
+}
+
+/** Boutiques affichables dans le sélecteur et utilisables au quotidien. */
+export function filterActiveStores<T extends Pick<Store, "active">>(stores: T[]): T[] {
+  return stores.filter(isStoreActive)
+}
+
 export function formatStoreCreatedAt(createdAt: Store["createdAt"]): Date | null {
   if (!createdAt) return null
   return createdAt.toDate ? createdAt.toDate() : new Date(createdAt)

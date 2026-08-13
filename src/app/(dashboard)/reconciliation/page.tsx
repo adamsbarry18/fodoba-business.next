@@ -41,6 +41,8 @@ import {
   getSessionTotals,
   getMovementStats,
   getCashAuditSummary,
+  getExpectedBalanceEntries,
+  MOVEMENT_SOURCE_LABELS,
 } from "@/lib/cash-session-utils"
 import {
   CashFundDialog,
@@ -54,16 +56,6 @@ import { getDateLocale } from "@/i18n/get-date-locale"
 
 const MOVEMENTS_PAGE_SIZE = 25
 const HISTORY_PAGE_SIZE = 25
-
-const MOVEMENT_SOURCE_KEYS = [
-  "SALE",
-  "EXPENSE",
-  "PURCHASE_PAYMENT",
-  "CLIENT_PAYMENT",
-  "ADJUSTMENT",
-  "FUND_ENTRY",
-  "FUND_WITHDRAWAL",
-] as const
 
 export default function ReconciliationPage() {
   const t = useT()
@@ -88,11 +80,8 @@ export default function ReconciliationPage() {
 
   const movementSourceLabel = useCallback(
     (source: CashMovement["source"]) => {
-      const key = `reconciliation.movementSource.${source}` as const
-      if (MOVEMENT_SOURCE_KEYS.includes(source as (typeof MOVEMENT_SOURCE_KEYS)[number])) {
-        return t(key)
-      }
-      return source
+      const key = MOVEMENT_SOURCE_LABELS[source]
+      return key ? t(key) : source
     },
     [t]
   )
@@ -179,6 +168,11 @@ export default function ReconciliationPage() {
     if (!activeSession) return 0
     return Object.values(activeSession.expectedBalances).reduce((a, b) => a + b, 0)
   }, [activeSession])
+
+  const expectedBalanceEntries = useMemo(
+    () => getExpectedBalanceEntries(activeSession?.expectedBalances),
+    [activeSession]
+  )
 
   const closureVariance = useMemo(() => {
     if (!activeSession) return 0
@@ -496,7 +490,7 @@ export default function ReconciliationPage() {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     {t("reconciliation.statActiveLines")}
                   </p>
-                  <p className="text-2xl font-bold">{PAYMENT_METHOD_IDS.length}</p>
+                  <p className="text-2xl font-bold">{expectedBalanceEntries.length}</p>
                 </div>
               </CardContent>
             </Card>
@@ -506,25 +500,36 @@ export default function ReconciliationPage() {
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {t("reconciliation.expectedBalances")}
             </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {PAYMENT_METHOD_IDS.map((method) => (
-                <Card key={method} className="rounded-2xl border bg-card shadow-sm">
-                  <CardHeader className="p-3 pb-1">
-                    <CardTitle className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      {paymentMethodLabel(method)}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <p className="text-lg font-bold font-headline sm:text-xl">
-                      {formatAmount(activeSession.expectedBalances[method] || 0)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {t("reconciliation.expectedShort")}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {expectedBalanceEntries.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {expectedBalanceEntries.map(({ method, amount }) => (
+                  <Card key={method} className="rounded-2xl border bg-card shadow-sm">
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {paymentMethodLabel(method)}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <p className="text-lg font-bold font-headline sm:text-xl">
+                        {formatAmount(amount)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {t("reconciliation.expectedShort")}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-muted/20 px-4 py-8 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  {t("reconciliation.noExpectedBalances")}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("reconciliation.noExpectedBalancesDesc")}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-12 xl:items-stretch">

@@ -3,18 +3,73 @@ import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns"
 import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 
 export const EXPENSE_CATEGORIES = [
-  "Loyer",
-  "Électricité",
-  "Eau",
-  "Transport",
-  "Personnel",
-  "Fournitures",
-  "Maintenance",
-  "Marketing",
-  "Divers",
+  "rent",
+  "electricity",
+  "water",
+  "transport",
+  "staff",
+  "supplies",
+  "maintenance",
+  "marketing",
+  "misc",
 ] as const
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
+
+const EXPENSE_CATEGORY_LABEL_KEYS: Record<ExpenseCategory, string> = {
+  rent: "expenses.categories.rent",
+  electricity: "expenses.categories.electricity",
+  water: "expenses.categories.water",
+  transport: "expenses.categories.transport",
+  staff: "expenses.categories.staff",
+  supplies: "expenses.categories.supplies",
+  maintenance: "expenses.categories.maintenance",
+  marketing: "expenses.categories.marketing",
+  misc: "expenses.categories.misc",
+}
+
+/** Anciennes valeurs FR → id canonique anglais. */
+const EXPENSE_CATEGORY_ALIASES: Record<string, ExpenseCategory> = {
+  rent: "rent",
+  Loyer: "rent",
+  electricity: "electricity",
+  Électricité: "electricity",
+  Electricite: "electricity",
+  water: "water",
+  Eau: "water",
+  transport: "transport",
+  Transport: "transport",
+  staff: "staff",
+  Personnel: "staff",
+  supplies: "supplies",
+  Fournitures: "supplies",
+  maintenance: "maintenance",
+  Maintenance: "maintenance",
+  marketing: "marketing",
+  Marketing: "marketing",
+  misc: "misc",
+  Divers: "misc",
+}
+
+for (const [from, to] of Object.entries({ ...EXPENSE_CATEGORY_ALIASES })) {
+  EXPENSE_CATEGORY_ALIASES[from.toLowerCase()] = to
+}
+
+export function canonicalizeExpenseCategory(category: string): string {
+  const trimmed = category.trim()
+  if (!trimmed) return trimmed
+  return EXPENSE_CATEGORY_ALIASES[trimmed] ?? EXPENSE_CATEGORY_ALIASES[trimmed.toLowerCase()] ?? trimmed
+}
+
+/** Libellé i18n si catégorie connue (y compris anciennes valeurs FR), sinon valeur brute. */
+export function getExpenseCategoryLabel(
+  category: string,
+  t: (key: string) => string
+): string {
+  const canonical = canonicalizeExpenseCategory(category)
+  const key = EXPENSE_CATEGORY_LABEL_KEYS[canonical as ExpenseCategory]
+  return key ? t(key) : category
+}
 export type ExpenseCategoryFilter = "all" | ExpenseCategory
 export type ExpenseMethodFilter = "all" | string
 
@@ -41,7 +96,9 @@ export function filterExpenses(
       )
 
     const matchesCategory =
-      !opts.category || opts.category === "all" || e.category === opts.category
+      !opts.category ||
+      opts.category === "all" ||
+      canonicalizeExpenseCategory(e.category) === canonicalizeExpenseCategory(opts.category)
     const matchesMethod =
       !opts.method || opts.method === "all" || e.method === opts.method
 
@@ -68,7 +125,8 @@ export function getTopExpenseCategory(
 ): { category: string; amount: number } | null {
   const totals: Record<string, number> = {}
   for (const e of expenses) {
-    totals[e.category] = (totals[e.category] || 0) + e.amount
+    const id = canonicalizeExpenseCategory(e.category)
+    totals[id] = (totals[id] || 0) + e.amount
   }
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1])
   if (sorted.length === 0) return null

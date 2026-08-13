@@ -22,23 +22,23 @@ export type ReportCard = {
   category: ReportCategory
 }
 
-export const REPORT_CATEGORIES: { id: "all" | ReportCategory; label: string }[] = [
-  { id: "all", label: "Tous les rapports" },
-  { id: "finance", label: "Finances & caisse" },
-  { id: "logistics", label: "Stocks & achats" },
-  { id: "clients", label: "Clients" },
+export const REPORT_CATEGORIES: { id: "all" | ReportCategory; labelKey: string }[] = [
+  { id: "all", labelKey: "reports.categoryAll" },
+  { id: "finance", labelKey: "reports.categoryFinance" },
+  { id: "logistics", labelKey: "reports.categoryLogistics" },
+  { id: "clients", labelKey: "reports.categoryClients" },
 ]
 
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
-  finance: "Finance & caisse",
-  logistics: "Stocks & achats",
-  clients: "Tiers & clients",
+  finance: "reports.categoryFinanceBadge",
+  logistics: "reports.categoryLogisticsBadge",
+  clients: "reports.categoryClientsBadge",
 }
 
 export const REPORT_CARDS: ReportCard[] = [
   {
-    title: "Journal des ventes",
-    description: "Analyse du CA, des marges et des remises par boutique.",
+    title: "reports.card.sales.title",
+    description: "reports.card.sales.desc",
     icon: ShoppingCart,
     href: "/reports/sales",
     color: "text-blue-600 dark:text-blue-400",
@@ -47,8 +47,8 @@ export const REPORT_CARDS: ReportCard[] = [
     category: "finance",
   },
   {
-    title: "État du stock",
-    description: "Niveaux d'inventaire, valorisation PMP et alertes rupture.",
+    title: "reports.card.inventory.title",
+    description: "reports.card.inventory.desc",
     icon: Package,
     href: "/reports/inventory",
     color: "text-emerald-600 dark:text-emerald-400",
@@ -57,8 +57,8 @@ export const REPORT_CARDS: ReportCard[] = [
     category: "logistics",
   },
   {
-    title: "Journal de caisse",
-    description: "Historique des sessions, clôtures et écarts de rapprochement.",
+    title: "reports.card.cash.title",
+    description: "reports.card.cash.desc",
     icon: History,
     href: "/reports/cash",
     color: "text-purple-600 dark:text-purple-400",
@@ -67,8 +67,8 @@ export const REPORT_CARDS: ReportCard[] = [
     category: "finance",
   },
   {
-    title: "Portefeuille clients",
-    description: "Créances, encours et historique par client.",
+    title: "reports.card.clients.title",
+    description: "reports.card.clients.desc",
     icon: Users,
     href: "/reports/clients",
     color: "text-amber-600 dark:text-amber-400",
@@ -77,8 +77,8 @@ export const REPORT_CARDS: ReportCard[] = [
     category: "clients",
   },
   {
-    title: "Suivi fournisseurs",
-    description: "Achats, délais de livraison et dettes fournisseurs.",
+    title: "reports.card.suppliers.title",
+    description: "reports.card.suppliers.desc",
     icon: Truck,
     href: "/reports/suppliers",
     color: "text-orange-600 dark:text-orange-400",

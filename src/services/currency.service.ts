@@ -108,7 +108,7 @@ export const CurrencyService = {
     user: UserProfile
   ) {
     if (code === reference) {
-      throw new Error("La devise de référence ne peut pas être modifiée.")
+      throw new Error("currencies.error.cannotEditReference")
     }
 
     const validationError = validateRate(displayedRateVsReference)
@@ -135,7 +135,7 @@ export const CurrencyService = {
     if (storageValidation) throw new Error(storageValidation)
 
     if (targetCode === STORAGE_CURRENCY) {
-      throw new Error("Le taux FCFA de stockage est fixe (1).")
+      throw new Error("currencies.error.storageRateFixed")
     }
 
     const docRef = doc(db, COLLECTION_NAME, targetCode)

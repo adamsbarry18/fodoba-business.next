@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner"
 import { Loader2, Save, ArrowRightLeft, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react"
 import { PaymentMethodPicker } from "@/components/payments/payment-method-picker"
-import { type FundOperationType } from "@/lib/cash-session-utils"
+import { type FundOperationType, FUND_OPERATION_TYPES } from "@/lib/cash-session-utils"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { cn } from "@/lib/utils"
 import { PaymentMethodSchema, type PaymentMethod } from "@/lib/types"
@@ -43,19 +43,6 @@ type CashFundDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (values: CashFundFormValues) => Promise<void>
-}
-
-const FUND_TYPE_KEYS: Record<FundOperationType, { label: string; description: string; hint: string }> = {
-  IN: {
-    label: "cashFund.typeIn.label",
-    description: "cashFund.typeIn.description",
-    hint: "cashFund.typeIn.hint",
-  },
-  OUT: {
-    label: "cashFund.typeOut.label",
-    description: "cashFund.typeOut.description",
-    hint: "cashFund.typeOut.hint",
-  },
 }
 
 export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogProps) {
@@ -100,12 +87,10 @@ export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogP
     }
   }
 
-  const reasonPlaceholder =
-    selectedType === "IN"
-      ? t(FUND_TYPE_KEYS.IN.hint)
-      : selectedType === "OUT"
-        ? t(FUND_TYPE_KEYS.OUT.hint)
-        : t("cashFund.reasonPlaceholder")
+  const selectedFundType = FUND_OPERATION_TYPES.find((op) => op.value === selectedType)
+  const reasonPlaceholder = selectedFundType
+    ? t(selectedFundType.hintKey)
+    : t("cashFund.reasonPlaceholder")
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -133,8 +118,8 @@ export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogP
                   <FormItem>
                     <FormLabel required>{t("cashFund.operationType")}</FormLabel>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {(["IN", "OUT"] as const).map((opValue) => {
-                        const keys = FUND_TYPE_KEYS[opValue]
+                      {FUND_OPERATION_TYPES.map((op) => {
+                        const opValue = op.value
                         return (
                           <button
                             key={opValue}
@@ -156,11 +141,11 @@ export function CashFundDialog({ open, onOpenChange, onSubmit }: CashFundDialogP
                               ) : (
                                 <ArrowUpFromLine className="mr-1 h-3 w-3" />
                               )}
-                              {t(keys.label)}
+                              {t(op.labelKey)}
                             </StatusBadge>
-                            <span className="text-sm font-semibold">{t(keys.label)}</span>
+                            <span className="text-sm font-semibold">{t(op.labelKey)}</span>
                             <span className="text-[11px] text-muted-foreground">
-                              {t(keys.description)}
+                              {t(op.descriptionKey)}
                             </span>
                           </button>
                         )

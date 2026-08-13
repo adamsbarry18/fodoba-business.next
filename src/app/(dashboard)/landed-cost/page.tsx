@@ -38,14 +38,15 @@ import { toast } from "sonner"
 import { useCurrency } from "@/hooks/use-currency"
 import { StatusBadge } from "@/components/ui/status-badge"
 import {
+  createLandedCostFormSchema,
   getCostBreakdownRows,
   LANDED_COST_DEFAULTS,
-  LandedCostFormSchema,
-  PURCHASE_CURRENCIES,
+  PURCHASE_CURRENCY_CODES,
   suggestExchangeRate,
-  TARGET_CURRENCIES,
+  TARGET_CURRENCY_CODES,
   type LandedCostFormValues,
 } from "@/lib/landed-cost-utils"
+import { getCurrencySelectLabel } from "@/lib/constants/currencies"
 import { useT } from "@/i18n/context"
 
 const BREAKDOWN_LABEL_KEYS = [
@@ -60,8 +61,9 @@ export default function LandedCostPage() {
   const t = useT()
   const [result, setResult] = useState<LandedCostOutput | null>(null)
 
+  const schema = useMemo(() => createLandedCostFormSchema(t), [t])
   const form = useForm<LandedCostFormValues>({
-    resolver: zodResolver(LandedCostFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: LANDED_COST_DEFAULTS,
   })
 
@@ -147,9 +149,9 @@ export default function LandedCostPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="rounded-xl">
-                            {PURCHASE_CURRENCIES.map((c) => (
-                              <SelectItem key={c.value} value={c.value}>
-                                {c.label}
+                            {PURCHASE_CURRENCY_CODES.map((code) => (
+                              <SelectItem key={code} value={code}>
+                                {getCurrencySelectLabel(code, t)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -264,9 +266,9 @@ export default function LandedCostPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="rounded-xl">
-                            {TARGET_CURRENCIES.map((c) => (
-                              <SelectItem key={c.value} value={c.value}>
-                                {c.label}
+                            {TARGET_CURRENCY_CODES.map((code) => (
+                              <SelectItem key={code} value={code}>
+                                {getCurrencySelectLabel(code, t)}
                               </SelectItem>
                             ))}
                           </SelectContent>

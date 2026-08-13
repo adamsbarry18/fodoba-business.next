@@ -50,6 +50,7 @@ import {
   type SupplierDebtFilter,
   type SupplierTypeFilter,
 } from "@/lib/supplier-utils"
+import { getCurrencySelectLabel } from "@/lib/constants/currencies"
 import { cn } from "@/lib/utils"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
@@ -287,7 +288,7 @@ export default function SuppliersPage() {
               <SelectItem value="all">{t("suppliers.filterCurrencyAll")}</SelectItem>
               {SUPPLIER_CURRENCIES.map((c) => (
                 <SelectItem key={c.value} value={c.value}>
-                  {c.label}
+                  {getCurrencySelectLabel(c.value, t)}
                 </SelectItem>
               ))}
             </SelectContent>

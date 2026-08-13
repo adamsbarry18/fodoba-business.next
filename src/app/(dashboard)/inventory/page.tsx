@@ -62,6 +62,7 @@ import {
   filterProducts,
   getStockStatus,
   normalizeProduct,
+  getProductUnitLabel,
   type StockFilter,
 } from "@/lib/product-utils"
 import { formatDecomposedStockLabel, type DecomposedStock } from "@/lib/stock-utils"
@@ -465,12 +466,15 @@ export default function InventoryPage() {
                       const status = getStockStatus(stock, p.lowStockThreshold)
                       const category = categories.find((c) => c.id === p.categoryId)?.name
                       const normalized = normalizeProduct(p)
+                      const unitLabel = getProductUnitLabel(normalized.unit, t)
+                      const packLabel = getProductUnitLabel(normalized.packagingUnit, t)
                       const hasPackaging =
                         !!normalized.packagingUnit && normalized.unitsPerPack > 1
                       const decomposedLabel = formatDecomposedStockLabel(
                         stockRecord,
                         p,
-                        t("inventory.stockBreakdownSeparator")
+                        t("inventory.stockBreakdownSeparator"),
+                        (unit) => getProductUnitLabel(unit, t)
                       )
 
                       return (
@@ -482,12 +486,12 @@ export default function InventoryPage() {
                             <TableCell className="pl-4 sm:pl-6">
                               <p className="text-sm font-semibold">{p.name}</p>
                               <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                {p.unit}
+                                {unitLabel}
                                 {normalized.packagingUnit && normalized.unitsPerPack > 1
                                   ? ` · ${t("inventory.detail.unitsPerPack", {
                                       count: normalized.unitsPerPack,
-                                      unit: p.unit,
-                                      packaging: normalized.packagingUnit,
+                                      unit: unitLabel,
+                                      packaging: packLabel,
                                     })}`
                                   : ""}
                               </p>
@@ -538,7 +542,7 @@ export default function InventoryPage() {
                                     <span className="text-[9px] text-muted-foreground">
                                       {t("inventory.stockTotalUnits", {
                                         count: stock,
-                                        unit: p.unit,
+                                        unit: unitLabel,
                                       })}
                                     </span>
                                   </>

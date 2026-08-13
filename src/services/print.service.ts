@@ -7,7 +7,7 @@ import { Sale, Store, Purchase, StockMovement, Product, CashSession } from '@/li
 import { formatPdfMoney, formatPdfNumber, sanitizePdfText } from '@/lib/utils';
 import { PAYMENT_METHOD_IDS } from '@/lib/constants/payment-methods';
 import { getAppName } from '@/lib/constants/branding';
-import { normalizeProduct } from '@/lib/product-utils';
+import { normalizeProduct, getProductUnitLabelFr } from '@/lib/product-utils';
 import { formatDecomposedStockLabel, type DecomposedStock } from '@/lib/stock-utils';
 import { formatSaleItemName, formatSaleItemQuantity } from '@/lib/pos-utils';
 import { buildSaleClientReceiptLines, isRegisteredSaleClient } from '@/lib/sale-client-utils';
@@ -509,12 +509,16 @@ export const PrintService = {
     y += 8;
 
     const normalized = normalizeProduct(product);
+    const unitLabel = getProductUnitLabelFr(product.unit);
+    const packLabel = normalized.packagingUnit
+      ? getProductUnitLabelFr(normalized.packagingUnit)
+      : '';
     const packagingLabel =
       normalized.unitsPerPack > 1
         ? l.formatPackagingValue(
             normalized.unitsPerPack,
-            product.unit,
-            normalized.packagingUnit || l.packagingFallback
+            unitLabel,
+            packLabel || l.packagingFallback
           )
         : '-';
 
@@ -522,8 +526,8 @@ export const PrintService = {
       [l.sku, product.sku],
       [l.barcode, product.barcode || '-'],
       [l.category, categoryName || product.categoryId],
-      [l.retailUnit, product.unit],
-      [l.packagingUnit, normalized.packagingUnit || '-'],
+      [l.retailUnit, unitLabel],
+      [l.packagingUnit, packLabel || '-'],
       [l.packagingContent, packagingLabel],
       [l.retailPrice, formatMoney(product.sellingPriceFCFA)],
       [l.wholesalePrice, formatMoney(normalized.wholesalePriceFCFA)],
@@ -558,9 +562,9 @@ export const PrintService = {
         const record = stockRecords[s.id] ?? { packagingQty: 0, detailQty: 0, quantity: 0 };
         const hasPackaging = normalized.unitsPerPack > 1 && !!normalized.packagingUnit;
         const quantityLabel = hasPackaging
-          ? `${formatDecomposedStockLabel(record, product, ' + ')} (${record.quantity} ${product.unit})`
+          ? `${formatDecomposedStockLabel(record, product, ' + ', getProductUnitLabelFr)} (${record.quantity} ${unitLabel})`
           : String(record.quantity);
-        return [s.name, s.code, quantityLabel, product.unit];
+        return [s.name, s.code, quantityLabel, unitLabel];
       }),
       headStyles: { fillColor: [29, 217, 124] },
     });

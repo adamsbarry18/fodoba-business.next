@@ -1,27 +1,62 @@
 import { CashSession, CashMovement } from "@/lib/types"
+import { PAYMENT_METHOD_IDS } from "@/lib/constants/payment-methods"
+
+const KNOWN_METHOD_ORDER = new Map<string, number>(
+  PAYMENT_METHOD_IDS.map((id, index) => [id, index])
+)
+
+export interface ExpectedBalanceEntry {
+  method: string
+  amount: number
+}
+
+function sortBalanceEntries(a: ExpectedBalanceEntry, b: ExpectedBalanceEntry) {
+  const aOrder = KNOWN_METHOD_ORDER.get(a.method) ?? Number.MAX_SAFE_INTEGER
+  const bOrder = KNOWN_METHOD_ORDER.get(b.method) ?? Number.MAX_SAFE_INTEGER
+  if (aOrder !== bOrder) return aOrder - bOrder
+  return a.method.localeCompare(b.method, "fr")
+}
+
+/**
+ * Soldes théoriques à afficher : moyens réellement présents (y compris saisie libre)
+ * et, par défaut, uniquement ceux dont le montant n'est pas nul.
+ */
+export function getExpectedBalanceEntries(
+  expectedBalances: Record<string, number> | undefined,
+  options?: { includeZero?: boolean }
+): ExpectedBalanceEntry[] {
+  if (!expectedBalances) return []
+
+  const includeZero = options?.includeZero ?? false
+
+  return Object.entries(expectedBalances)
+    .map(([method, raw]) => ({ method, amount: Number(raw) || 0 }))
+    .filter(({ amount }) => includeZero || amount !== 0)
+    .sort(sortBalanceEntries)
+}
 
 export const MOVEMENT_SOURCE_LABELS: Record<CashMovement["source"], string> = {
-  SALE: "Vente",
-  EXPENSE: "Dépense",
-  PURCHASE_PAYMENT: "Paiement achat",
-  CLIENT_PAYMENT: "Remboursement client",
-  ADJUSTMENT: "Ajustement",
-  FUND_ENTRY: "Alimentation caisse",
-  FUND_WITHDRAWAL: "Retrait caisse",
+  SALE: "reconciliation.movementSource.SALE",
+  EXPENSE: "reconciliation.movementSource.EXPENSE",
+  PURCHASE_PAYMENT: "reconciliation.movementSource.PURCHASE_PAYMENT",
+  CLIENT_PAYMENT: "reconciliation.movementSource.CLIENT_PAYMENT",
+  ADJUSTMENT: "reconciliation.movementSource.ADJUSTMENT",
+  FUND_ENTRY: "reconciliation.movementSource.FUND_ENTRY",
+  FUND_WITHDRAWAL: "reconciliation.movementSource.FUND_WITHDRAWAL",
 }
 
 export const FUND_OPERATION_TYPES = [
   {
     value: "IN" as const,
-    label: "Alimentation",
-    description: "Ajout de fonds dans une ligne de caisse",
-    hint: "Apport de fonds de roulement, complément monnaie…",
+    labelKey: "cashFund.typeIn.label",
+    descriptionKey: "cashFund.typeIn.description",
+    hintKey: "cashFund.typeIn.hint",
   },
   {
     value: "OUT" as const,
-    label: "Retrait",
-    description: "Sortie exceptionnelle hors vente ou dépense",
-    hint: "Versement banque, retrait sécurisé, correction…",
+    labelKey: "cashFund.typeOut.label",
+    descriptionKey: "cashFund.typeOut.description",
+    hintKey: "cashFund.typeOut.hint",
   },
 ] as const
 

@@ -12,7 +12,7 @@ import type { AuditAction, AuditCategory } from "@/lib/types"
 import type { BadgeTone } from "@/lib/badge-tones"
 
 export type AuditActionConfig = {
-  label: string
+  labelKey: string
   tone: BadgeTone
   category: AuditCategory
   icon: LucideIcon
@@ -20,55 +20,55 @@ export type AuditActionConfig = {
 
 export const AUDIT_ACTION_CONFIG: Record<string, AuditActionConfig> = {
   CREATE_USER: {
-    label: "Création utilisateur",
+    labelKey: "badges.auditAction.CREATE_USER",
     tone: "success",
     category: "user",
     icon: UserPlus,
   },
   UPDATE_USER: {
-    label: "Modification profil",
+    labelKey: "badges.auditAction.UPDATE_USER",
     tone: "info",
     category: "user",
     icon: UserPen,
   },
   ACTIVATE_USER: {
-    label: "Activation compte",
+    labelKey: "badges.auditAction.ACTIVATE_USER",
     tone: "success",
     category: "user",
     icon: UserCheck,
   },
   SUSPEND_USER: {
-    label: "Suspension compte",
+    labelKey: "badges.auditAction.SUSPEND_USER",
     tone: "destructive",
     category: "user",
     icon: UserX,
   },
   UPDATE_EXCHANGE_RATE: {
-    label: "Taux de change",
+    labelKey: "badges.auditAction.UPDATE_EXCHANGE_RATE",
     tone: "warning",
     category: "currency",
     icon: Coins,
   },
   CREATE_STORE: {
-    label: "Création boutique",
+    labelKey: "badges.auditAction.CREATE_STORE",
     tone: "success",
     category: "system",
     icon: Store,
   },
   UPDATE_STORE: {
-    label: "Modification boutique",
+    labelKey: "badges.auditAction.UPDATE_STORE",
     tone: "info",
     category: "system",
     icon: Store,
   },
   ACTIVATE_STORE: {
-    label: "Activation boutique",
+    labelKey: "badges.auditAction.ACTIVATE_STORE",
     tone: "success",
     category: "system",
     icon: Store,
   },
   SUSPEND_STORE: {
-    label: "Suspension boutique",
+    labelKey: "badges.auditAction.SUSPEND_STORE",
     tone: "destructive",
     category: "system",
     icon: Store,
@@ -76,15 +76,15 @@ export const AUDIT_ACTION_CONFIG: Record<string, AuditActionConfig> = {
 }
 
 export const AUDIT_CATEGORY_LABELS: Record<AuditCategory, string> = {
-  user: "Utilisateurs & accès",
-  currency: "Devises & taux",
-  system: "Système",
+  user: "audit.category.user",
+  currency: "audit.category.currency",
+  system: "audit.category.system",
 }
 
 export function getAuditActionConfig(action: AuditAction): AuditActionConfig {
   return (
     AUDIT_ACTION_CONFIG[action] ?? {
-      label: action.replace(/_/g, " ").toLowerCase(),
+      labelKey: action.replace(/_/g, " ").toLowerCase(),
       tone: "slate",
       category: "system",
       icon: ShieldAlert,

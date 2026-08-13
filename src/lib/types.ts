@@ -54,9 +54,9 @@ export const ProductSchema = z.object({
   barcode: z.string().optional(),
   categoryId: z.string().min(1, "La catégorie est requise"),
   imageUrl: z.string().optional(),
-  /** Unité de gros (ex. Carton, Sac) */
+  /** Unité de gros (id anglais, ex. carton, bag) */
   packagingUnit: z.string().optional(),
-  /** Unité de détail / vente (ex. Pièce, Bouteille) */
+  /** Unité de détail / vente (id anglais, ex. piece, bottle) */
   unit: z.string().min(1, "L'unité détail est requise"),
   /** Nombre d'unités détail par unité de gros */
   unitsPerPack: z.number().min(1).default(1),

@@ -24,14 +24,14 @@ export const MOVEMENT_TYPE_ORDER: MovementType[] = [
 
 export const MOVEMENT_META: Record<
   MovementType,
-  { label: string; Icon: LucideIcon }
+  { labelKey: string; Icon: LucideIcon }
 > = {
-  PURCHASE: { label: "Achat / Entrée", Icon: ArrowDownLeft },
-  SALE: { label: "Vente", Icon: ArrowUpRight },
-  TRANSFER_IN: { label: "Transfert (Entrée)", Icon: ArrowRightLeft },
-  TRANSFER_OUT: { label: "Transfert (Sortie)", Icon: ArrowRightLeft },
-  RETURN: { label: "Retour client", Icon: RefreshCw },
-  CORRECTION: { label: "Correction inventaire", Icon: ClipboardCheck },
+  PURCHASE: { labelKey: "badges.stockMovement.PURCHASE", Icon: ArrowDownLeft },
+  SALE: { labelKey: "badges.stockMovement.SALE", Icon: ArrowUpRight },
+  TRANSFER_IN: { labelKey: "badges.stockMovement.TRANSFER_IN", Icon: ArrowRightLeft },
+  TRANSFER_OUT: { labelKey: "badges.stockMovement.TRANSFER_OUT", Icon: ArrowRightLeft },
+  RETURN: { labelKey: "badges.stockMovement.RETURN", Icon: RefreshCw },
+  CORRECTION: { labelKey: "badges.stockMovement.CORRECTION", Icon: ClipboardCheck },
 }
 
 export function toMovementDate(ts: StockMovement["timestamp"]): Date | null {

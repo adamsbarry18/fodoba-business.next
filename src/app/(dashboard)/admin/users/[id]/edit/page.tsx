@@ -25,7 +25,7 @@ import { ArrowLeft, Loader2, Save, Mail, Shield, Store as StoreIcon, Info } from
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/contexts/AuthContext"
-import { getUserDisplayName, getUserInitials, ROLE_ORDER } from "@/lib/user-utils"
+import { getUserDisplayName, getUserInitials, ROLE_META, ROLE_ORDER } from "@/lib/user-utils"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { useT } from "@/i18n/context"
 
@@ -223,7 +223,7 @@ export default function EditUserPage() {
                       <SelectContent className="rounded-xl">
                         {ROLE_ORDER.map((role) => (
                           <SelectItem key={role} value={role}>
-                            {t(`users.roles.${role}.label`)}
+                            {t(ROLE_META[role].labelKey)}
                           </SelectItem>
                         ))}
                       </SelectContent>

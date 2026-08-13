@@ -18,44 +18,14 @@ import Link from "next/link"
 import { usePermissions } from "@/hooks/use-permissions"
 import {
   REPORT_CARDS,
+  REPORT_CATEGORIES,
+  REPORT_CATEGORY_LABELS,
   countReportsByCategory,
   filterReports,
   type ReportCategory,
 } from "@/lib/report-utils"
 import { cn } from "@/lib/utils"
 import { useT } from "@/i18n/context"
-
-const REPORT_CARD_KEYS: Record<
-  string,
-  { title: string; description: string }
-> = {
-  "/reports/sales": {
-    title: "reports.card.sales.title",
-    description: "reports.card.sales.desc",
-  },
-  "/reports/inventory": {
-    title: "reports.card.inventory.title",
-    description: "reports.card.inventory.desc",
-  },
-  "/reports/cash": {
-    title: "reports.card.cash.title",
-    description: "reports.card.cash.desc",
-  },
-  "/reports/clients": {
-    title: "reports.card.clients.title",
-    description: "reports.card.clients.desc",
-  },
-  "/reports/suppliers": {
-    title: "reports.card.suppliers.title",
-    description: "reports.card.suppliers.desc",
-  },
-}
-
-const CATEGORY_BADGE_KEYS: Record<ReportCategory, string> = {
-  finance: "reports.categoryFinanceBadge",
-  logistics: "reports.categoryLogisticsBadge",
-  clients: "reports.categoryClientsBadge",
-}
 
 export default function ReportsPage() {
   const t = useT()
@@ -65,25 +35,20 @@ export default function ReportsPage() {
 
   const reportCategories = useMemo(
     () =>
-      [
-        { id: "all" as const, label: t("reports.categoryAll") },
-        { id: "finance" as const, label: t("reports.categoryFinance") },
-        { id: "logistics" as const, label: t("reports.categoryLogistics") },
-        { id: "clients" as const, label: t("reports.categoryClients") },
-      ],
+      REPORT_CATEGORIES.map((cat) => ({
+        id: cat.id,
+        label: t(cat.labelKey),
+      })),
     [t]
   )
 
   const localizedCards = useMemo(
     () =>
-      REPORT_CARDS.map((report) => {
-        const keys = REPORT_CARD_KEYS[report.href]
-        return {
-          ...report,
-          title: keys ? t(keys.title) : report.title,
-          description: keys ? t(keys.description) : report.description,
-        }
-      }),
+      REPORT_CARDS.map((report) => ({
+        ...report,
+        title: t(report.title),
+        description: t(report.description),
+      })),
     [t]
   )
 
@@ -239,7 +204,7 @@ export default function ReportsPage() {
                         {report.title}
                       </CardTitle>
                       <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {t(CATEGORY_BADGE_KEYS[report.category])}
+                        {t(REPORT_CATEGORY_LABELS[report.category])}
                       </span>
                     </div>
                   </CardHeader>

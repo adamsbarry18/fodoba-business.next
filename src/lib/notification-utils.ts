@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import { Package, ShoppingCart, Truck, Info, CalendarClock } from "lucide-react"
 import type { AppNotification, AppNotificationType } from "@/lib/types"
 import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns"
-import { fr } from "date-fns/locale"
+import type { Locale as DateFnsLocale } from "date-fns"
 
 export type NotificationTab = "all" | "unread"
 
@@ -18,13 +18,13 @@ export function isImportantNotification(notification: AppNotification): boolean 
 
 export const NOTIFICATION_TYPE_META: Record<
   AppNotificationType,
-  { label: string; Icon: LucideIcon }
+  { labelKey: string; Icon: LucideIcon }
 > = {
-  STOCK_ALERT: { label: "Alerte stock", Icon: Package },
-  SALE: { label: "Vente", Icon: ShoppingCart },
-  PURCHASE: { label: "Achat", Icon: Truck },
-  INFO: { label: "Information", Icon: Info },
-  EXPIRATION_ALERT: { label: "Expiration", Icon: CalendarClock },
+  STOCK_ALERT: { labelKey: "badges.notificationType.STOCK_ALERT", Icon: Package },
+  SALE: { labelKey: "badges.notificationType.SALE", Icon: ShoppingCart },
+  PURCHASE: { labelKey: "badges.notificationType.PURCHASE", Icon: Truck },
+  INFO: { labelKey: "badges.notificationType.INFO", Icon: Info },
+  EXPIRATION_ALERT: { labelKey: "badges.notificationType.EXPIRATION_ALERT", Icon: CalendarClock },
 }
 
 export function toNotificationDate(ts: AppNotification["timestamp"]): Date | null {
@@ -35,26 +35,40 @@ export function toNotificationDate(ts: AppNotification["timestamp"]): Date | nul
   return new Date(ts as Date | string)
 }
 
-export function formatNotificationTime(ts: AppNotification["timestamp"]): string {
+export function formatNotificationTime(
+  ts: AppNotification["timestamp"],
+  options: {
+    locale: DateFnsLocale
+    t: (key: string, values?: Record<string, string>) => string
+  }
+): string {
   const date = toNotificationDate(ts)
   if (!date) return ""
 
+  const { locale, t } = options
+  const time = format(date, "HH:mm")
   const diffMs = Date.now() - date.getTime()
-  if (diffMs < 60_000) return "À l'instant"
+  if (diffMs < 60_000) return t("notifications.time.justNow")
 
   if (isToday(date)) {
-    return formatDistanceToNow(date, { addSuffix: true, locale: fr })
+    return formatDistanceToNow(date, { addSuffix: true, locale })
   }
 
   if (isYesterday(date)) {
-    return `Hier à ${format(date, "HH:mm", { locale: fr })}`
+    return t("notifications.time.yesterdayAt", { time })
   }
 
   if (diffMs < 7 * 24 * 60 * 60 * 1000) {
-    return format(date, "EEEE 'à' HH:mm", { locale: fr })
+    return t("notifications.time.weekdayAt", {
+      weekday: format(date, "EEEE", { locale }),
+      time,
+    })
   }
 
-  return format(date, "d MMM yyyy 'à' HH:mm", { locale: fr })
+  return t("notifications.time.dateAt", {
+    date: format(date, "d MMM yyyy", { locale }),
+    time,
+  })
 }
 
 export function filterNotifications(

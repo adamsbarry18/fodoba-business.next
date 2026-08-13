@@ -16,7 +16,7 @@ import { useEffect, useState } from "react"
 import { useCreateReturn } from "@/hooks/use-create-return"
 import { ENTITY_ROUTES, readReturnContext } from "@/lib/navigation/return-to"
 import { applyReturnSelection } from "@/hooks/use-return-selection"
-import { generateProductSku } from "@/lib/product-utils"
+import { generateProductSku, DEFAULT_RETAIL_UNIT } from "@/lib/product-utils"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { ProductFormFields } from "@/components/inventory/product-form-fields"
@@ -47,7 +47,7 @@ export default function NewProductPage() {
       categoryId: "",
       imageUrl: undefined,
       packagingUnit: "",
-      unit: "Pièce",
+      unit: DEFAULT_RETAIL_UNIT,
       unitsPerPack: 1,
       retailQtyFactor: 1,
       initialStockPackaging: 0,

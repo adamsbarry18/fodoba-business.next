@@ -54,12 +54,6 @@ import { cn } from "@/lib/utils"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
 
-const VALIDATION_I18N_KEYS: Record<string, string> = {
-  "Saisissez un nombre valide.": "currencies.validation.notFinite",
-  "Le taux doit être strictement positif.": "currencies.validation.positive",
-  "Le taux semble trop élevé. Vérifiez la valeur.": "currencies.validation.tooHigh",
-}
-
 function toDate(ts: ExchangeRate["lastUpdated"]): Date | null {
   if (!ts) return null
   if (typeof ts === "object" && ts !== null && "toDate" in ts && typeof ts.toDate === "function") {
@@ -102,10 +96,7 @@ export default function CurrenciesAdminPage() {
   )
 
   const translateValidationError = useCallback(
-    (error: string) => {
-      const key = VALIDATION_I18N_KEYS[error]
-      return key ? t(key) : error
-    },
+    (error: string) => (error.startsWith("currencies.") ? t(error) : error),
     [t]
   )
 
@@ -169,7 +160,7 @@ export default function CurrenciesAdminPage() {
       await loadExchangeRates()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t("currencies.updateError")
-      toast.error(message)
+      toast.error(translateValidationError(message))
     } finally {
       setUpdating(false)
     }
@@ -251,7 +242,7 @@ export default function CurrenciesAdminPage() {
                 <SelectContent className="rounded-xl">
                   {CURRENCY_ORDER.map((code) => (
                     <SelectItem key={code} value={code}>
-                      {CURRENCY_META[code].label} ({code})
+                      {t(CURRENCY_META[code].labelKey)} ({code})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -383,7 +374,7 @@ export default function CurrenciesAdminPage() {
                                   <Icon className="h-4 w-4" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-semibold">{meta.label}</p>
+                                  <p className="text-sm font-semibold">{t(meta.labelKey)}</p>
                                   <StatusBadge tone={meta.tone} className="mt-1 text-[10px]">
                                     {rate.code}
                                   </StatusBadge>
@@ -504,7 +495,7 @@ export default function CurrenciesAdminPage() {
                   <SelectContent className="rounded-xl">
                     {CURRENCY_ORDER.map((code) => (
                       <SelectItem key={code} value={code}>
-                        {CURRENCY_META[code].label} ({code})
+                        {t(CURRENCY_META[code].labelKey)} ({code})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -662,7 +653,7 @@ export default function CurrenciesAdminPage() {
             <p>{t("currencies.referenceConfirmHint")}</p>
             {pendingRef && (
               <p className="font-semibold text-foreground">
-                {CURRENCY_META[pendingRef].label} ({pendingRef})
+                {t(CURRENCY_META[pendingRef].labelKey)} ({pendingRef})
               </p>
             )}
           </div>

@@ -11,13 +11,13 @@ export const SUPPLIER_CURRENCIES = CURRENCY_SELECT_OPTIONS
 export const SUPPLIER_TYPES = [
   {
     value: "local" as const,
-    label: "Local",
-    description: "Fournisseur sous-régional ou national",
+    labelKey: "suppliers.types.local.label",
+    descriptionKey: "suppliers.types.local.description",
   },
   {
     value: "import" as const,
-    label: "Import",
-    description: "Partenaire international, devises étrangères",
+    labelKey: "suppliers.types.import.label",
+    descriptionKey: "suppliers.types.import.description",
   },
 ] as const
 

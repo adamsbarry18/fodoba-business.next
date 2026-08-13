@@ -9,31 +9,31 @@ export type ClientDeleteBlocker = "debt" | "sales" | "payments"
 export const CLIENT_TYPES = [
   {
     value: "particulier" as const,
-    label: "Particulier / Revendeur",
-    description: "Client de détail ou petit revendeur",
+    labelKey: "clients.types.particulier.label",
+    descriptionKey: "clients.types.particulier.description",
   },
   {
     value: "grossiste" as const,
-    label: "Grossiste",
-    description: "Achats en volume, conditions spéciales",
+    labelKey: "clients.types.grossiste.label",
+    descriptionKey: "clients.types.grossiste.description",
   },
 ] as const
 
 export const CLIENT_STATUSES = [
   {
     value: "actif" as const,
-    label: "Actif",
-    description: "Peut effectuer des achats à crédit",
+    labelKey: "clients.status.actif.label",
+    descriptionKey: "clients.status.actif.description",
   },
   {
     value: "suspendu" as const,
-    label: "Suspendu",
-    description: "Compte bloqué temporairement",
+    labelKey: "clients.status.suspendu.label",
+    descriptionKey: "clients.status.suspendu.description",
   },
   {
     value: "vip" as const,
-    label: "VIP",
-    description: "Accès prioritaire et crédit étendu",
+    labelKey: "clients.status.vip.label",
+    descriptionKey: "clients.status.vip.description",
   },
 ] as const
 

@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useCurrency } from "@/hooks/use-currency"
+import { usePermissions } from "@/hooks/use-permissions"
 import { fetchWithCache } from "@/lib/cache/client-cache"
 import { SaleService } from "@/services/sale.service"
 import { ClientService } from "@/services/client.service"
@@ -60,7 +61,7 @@ import {
   getDashboardStats,
   type DashboardTimeRange,
 } from "@/lib/dashboard-utils"
-import { getStockStatus } from "@/lib/product-utils"
+import { getProductUnitLabel, getStockStatus } from "@/lib/product-utils"
 import { cn } from "@/lib/utils"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
@@ -72,8 +73,10 @@ interface LowStockItem extends Product {
 
 export default function DashboardPage() {
   const { userProfile, isAdmin } = useAuth()
+  const { can } = usePermissions()
   const { activeStore, availableStores } = useStore()
   const { formatAmount } = useCurrency()
+  const canViewSupplierDebts = can("view:reports:suppliers")
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<DashboardTimeRange>("7d")
   const t = useT()
@@ -104,7 +107,9 @@ export default function DashboardPage() {
     try {
       const [clientsRes, suppliersRes, salesRes, sessionRes, productsRes] = await Promise.all([
         fetchWithCache("clients:list", () => ClientService.listClients(), 120_000),
-        fetchWithCache("suppliers:list", () => SupplierService.listSuppliers(), 120_000),
+        canViewSupplierDebts
+          ? fetchWithCache("suppliers:list", () => SupplierService.listSuppliers(), 120_000)
+          : Promise.resolve([] as Supplier[]),
         SaleService.listRecentSales(storeId, 200),
         CashService.getActiveSession(storeId),
         fetchWithCache(`products:active:${storeId}`, () => ProductService.listProducts({ active: true }, 100), 60_000),
@@ -135,7 +140,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [userProfile?.uid, activeStore?.id, t])
+  }, [userProfile?.uid, activeStore?.id, canViewSupplierDebts, t])
 
   useEffect(() => {
     void loadDashboardData()
@@ -233,7 +238,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-4 sm:grid-cols-2",
+          canViewSupplierDebts ? "xl:grid-cols-4" : "xl:grid-cols-3"
+        )}
+      >
         <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
           <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
@@ -268,20 +278,22 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
-          <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
-              <Truck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t("dashboard.supplierDebts")}
-              </p>
-              <p className="truncate text-sm font-bold">{formatAmount(stats.totalSupplierDebt)}</p>
-              <p className="truncate text-[10px] text-muted-foreground">{t("common.globalFodoba")}</p>
-            </div>
-          </CardContent>
-        </Card>
+        {canViewSupplierDebts && (
+          <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
+            <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/40">
+                <Truck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {t("dashboard.supplierDebts")}
+                </p>
+                <p className="truncate text-sm font-bold">{formatAmount(stats.totalSupplierDebt)}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{t("common.globalFodoba")}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
           <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
@@ -359,7 +371,7 @@ export default function DashboardPage() {
                       tone={status === "out" ? "destructive" : "warning"}
                       className="shrink-0 font-mono text-[10px]"
                     >
-                      {item.currentStock} {item.unit}
+                      {item.currentStock} {getProductUnitLabel(item.unit, t)}
                     </StatusBadge>
                   </div>
                 </Link>

@@ -68,7 +68,7 @@ import {
   hasWholesalePrice,
   syncSaleItemQuantities,
 } from "@/lib/pos-utils"
-import { normalizeProduct, getStockStatus } from "@/lib/product-utils"
+import { normalizeProduct, getProductUnitLabel, getStockStatus } from "@/lib/product-utils"
 import {
   formatDecomposedStockLabel,
   type DecomposedStock,
@@ -87,6 +87,7 @@ export default function POSPage() {
   const { userProfile } = useAuth()
   const { formatAmount } = useCurrency()
   const t = useT()
+  const formatUnit = (unit?: string) => getProductUnitLabel(unit, t)
   const searchParams = useSearchParams()
   const router = useRouter()
   const correctSaleIdParam = searchParams.get("correctSaleId")
@@ -886,7 +887,8 @@ export default function POSPage() {
                     const stockLabel = formatDecomposedStockLabel(
                       stockRecord,
                       product,
-                      t("inventory.stockBreakdownSeparator")
+                      t("inventory.stockBreakdownSeparator"),
+                      formatUnit
                     )
 
                     return (
@@ -898,7 +900,7 @@ export default function POSPage() {
                       <div className="p-5 space-y-3.5">
                         <div className="flex items-center justify-between">
                           <Badge variant="secondary" className="bg-secondary/60 text-muted-foreground border-none font-bold px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wider">
-                            {product.unit}
+                            {formatUnit(product.unit)}
                           </Badge>
                           <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
                             SKU: {product.sku}
@@ -936,7 +938,7 @@ export default function POSPage() {
                                 {t("pos.wholesalePricePerPack", {
                                   price: formatAmount(getProductPriceForTier(product, "wholesale")),
                                   unit:
-                                    normalizeProduct(product).packagingUnit ||
+                                    formatUnit(normalizeProduct(product).packagingUnit) ||
                                     t("inventory.form.packagingFallback"),
                                 })}
                               </p>
@@ -980,7 +982,8 @@ export default function POSPage() {
                           const stockLabel = formatDecomposedStockLabel(
                             stockRecord,
                             product,
-                            t("inventory.stockBreakdownSeparator")
+                            t("inventory.stockBreakdownSeparator"),
+                            formatUnit
                           )
 
                           return (
@@ -993,7 +996,7 @@ export default function POSPage() {
                             <td className="py-2.5 px-5 font-bold text-foreground group-hover:text-primary transition-colors">{product.name}</td>
                             <td className="py-2.5 px-5">
                               <StatusBadge tone="slate" className="text-[9px] font-bold uppercase">
-                                {product.unit}
+                                {formatUnit(product.unit)}
                               </StatusBadge>
                             </td>
                             <td
@@ -1013,7 +1016,7 @@ export default function POSPage() {
                                   {t("pos.wholesalePricePerPack", {
                                     price: formatAmount(getProductPriceForTier(product, "wholesale")),
                                     unit:
-                                      normalizeProduct(product).packagingUnit ||
+                                      formatUnit(normalizeProduct(product).packagingUnit) ||
                                       t("inventory.form.packagingFallback"),
                                   })}
                                 </div>
@@ -1250,16 +1253,18 @@ export default function POSPage() {
                         const currentTier = item.priceTier ?? "retail"
                         const product = products.find((p) => p.id === item.productId)
                         const wholesaleAvailable = product ? hasWholesalePrice(product) : false
-                        const saleUnit =
+                        const saleUnit = formatUnit(
                           item.saleUnit ??
-                          product?.unit ??
-                          t("inventory.form.unitFallback")
+                            product?.unit ??
+                            ""
+                        ) || t("inventory.form.unitFallback")
                         const stockRecord = stocks[item.productId]
                         const stockLabel = product && stockRecord
                           ? formatDecomposedStockLabel(
                               stockRecord,
                               product,
-                              t("inventory.stockBreakdownSeparator")
+                              t("inventory.stockBreakdownSeparator"),
+                              formatUnit
                             )
                           : null
                         const availableForTier =
@@ -1306,7 +1311,7 @@ export default function POSPage() {
                                       >
                                         {t("pos.priceTier.retailWithUnit", {
                                           unit:
-                                            product?.unit ||
+                                            formatUnit(product?.unit ?? "") ||
                                             t("inventory.form.unitFallback"),
                                         })}
                                       </button>
@@ -1329,7 +1334,7 @@ export default function POSPage() {
                                         {t("pos.priceTier.wholesaleWithUnit", {
                                           unit:
                                             (product
-                                              ? normalizeProduct(product).packagingUnit
+                                              ? formatUnit(normalizeProduct(product).packagingUnit)
                                               : "") ||
                                             t("inventory.form.packagingFallback"),
                                         })}
@@ -1339,7 +1344,7 @@ export default function POSPage() {
                                     <StatusBadge tone="slate" className="text-[8px]">
                                       {t("pos.priceTier.retailWithUnit", {
                                         unit:
-                                          product?.unit ||
+                                          formatUnit(product?.unit ?? "") ||
                                           t("inventory.form.unitFallback"),
                                       })}
                                     </StatusBadge>
