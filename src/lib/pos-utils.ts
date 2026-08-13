@@ -111,6 +111,18 @@ export function applyCartDiscount(subtotal: number, discount: number): number {
   return Math.max(subtotal - discount, 0)
 }
 
+/** Suggestions d'espèces arrondies au-dessus du total (pas de 10 000). */
+export function getCashQuickAmounts(total: number): number[] {
+  if (total <= 0) return []
+  const step = 10_000
+  const first = Math.ceil(total / step) * step
+  const amounts: number[] = []
+  if (first > total) amounts.push(first)
+  const second = first + step
+  if (second > total) amounts.push(second)
+  return amounts.slice(0, 2)
+}
+
 export const POS_PAYMENT_MODES: {
   id: PosPaymentMode
   labelKey: string

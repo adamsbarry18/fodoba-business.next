@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Plus, X } from "lucide-react"
+import { Banknote, Check, CreditCard, Plus, Smartphone, Wallet, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { PaymentMethod } from "@/lib/types"
 import {
@@ -16,6 +16,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useT } from "@/i18n/context"
 
+const METHOD_ICONS: Record<string, typeof Banknote> = {
+  CASH: Banknote,
+  ORANGE_MONEY: Smartphone,
+  CARD: CreditCard,
+  MOBILE_MONEY: Smartphone,
+  TRANSFER: Wallet,
+}
+
 export type PaymentMethodPickerProps = {
   value: PaymentMethod
   onValueChange: (method: PaymentMethod) => void
@@ -23,6 +31,7 @@ export type PaymentMethodPickerProps = {
   className?: string
   /** Restrict selectable primary methods (defaults to all primary). */
   allowedMethods?: PaymentMethod[]
+  variant?: "chips" | "cards"
 }
 
 function optionAllowed(
@@ -38,6 +47,7 @@ export function PaymentMethodPicker({
   disabled,
   className,
   allowedMethods,
+  variant = "chips",
 }: PaymentMethodPickerProps) {
   const t = useT()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -104,6 +114,49 @@ export function PaymentMethodPicker({
 
   const renderChip = (method: string, label: string, removable = false) => {
     const selected = value === method
+    const Icon = METHOD_ICONS[method]
+    if (variant === "cards") {
+      return (
+        <div key={method} className="relative">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onValueChange(method)}
+            className={cn(
+              "flex h-full min-h-[4.5rem] w-full flex-col items-start justify-center gap-1.5 rounded-2xl border px-3.5 py-3 text-left transition-colors",
+              selected
+                ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                : "border-border bg-background hover:bg-muted/50",
+              disabled && "cursor-not-allowed opacity-50",
+              removable && "pr-8"
+            )}
+          >
+            <div className="flex w-full items-center justify-between gap-2">
+              {Icon ? (
+                <Icon className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
+              ) : (
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+              )}
+              {selected && <Check className="h-4 w-4 text-primary" />}
+            </div>
+            <span className="text-xs font-bold leading-tight">{label}</span>
+          </button>
+          {removable && !disabled && (
+            <button
+              type="button"
+              aria-label={t("payment.removeMethod")}
+              onClick={(e) => {
+                e.stopPropagation()
+                removeCustom(method)
+              }}
+              className="absolute right-1.5 top-1.5 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      )
+    }
     return (
       <div key={method} className="relative">
         <button
@@ -141,7 +194,12 @@ export function PaymentMethodPicker({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div
+        className={cn(
+          "grid gap-2",
+          variant === "cards" ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-3"
+        )}
+      >
         {primaryOptions.map((option) =>
           renderChip(option.id, t(option.label))
         )}
@@ -198,14 +256,13 @@ export function PaymentMethodPicker({
           variant="outline"
           size="sm"
           disabled={disabled}
-          className="h-9 w-full rounded-xl border-dashed text-xs font-semibold"
+          className="h-10 w-full rounded-xl border-dashed text-xs font-semibold"
           onClick={() => setIsAdding(true)}
         >
           <Plus className="mr-1.5 h-3.5 w-3.5" />
-          {t("payment.addMethod")}
+          {t(variant === "cards" ? "pos.pay.addAnotherMethod" : "payment.addMethod")}
         </Button>
       )}
     </div>
   )
 }
-

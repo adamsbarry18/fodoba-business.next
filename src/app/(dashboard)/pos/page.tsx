@@ -8,8 +8,7 @@ import { ClientService } from "@/services/client.service"
 import { SaleService } from "@/services/sale.service"
 import { CategoryService } from "@/services/category.service"
 import { CashService } from "@/services/cash.service"
-import { Product, Client, SaleItem, Sale, Category, CashSession, PaymentMethod, PriceTier } from "@/lib/types"
-import { getSaleClientDisplayName } from "@/lib/sale-client-utils"
+import { Product, Client, SaleItem, Category, CashSession, PriceTier } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -22,38 +21,27 @@ import {
   Trash2, 
   Plus, 
   Minus, 
-  Printer,
   Loader2,
-  CheckCircle2,
   LayoutGrid,
   List,
   User,
-  Users,
   Barcode,
   Keyboard,
   Percent,
   Tag,
   Store,
-  X,
   RefreshCw,
   PencilLine,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogTitle, 
-  DialogDescription
-} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { PaymentDialog } from "@/components/pos/payment-dialog"
+import { PosClientPicker } from "@/components/pos/pos-client-picker"
 import { BarcodeScanField } from "@/components/barcode/barcode-scan-field"
 import { useGlobalBarcodeListener } from "@/hooks/use-barcode-scanner"
 import { applyReturnSelection } from "@/hooks/use-return-selection"
-import { SearchListAddFooter } from "@/components/forms/search-list-add-footer"
 import { ENTITY_ROUTES } from "@/lib/navigation/return-to"
 import Link from "next/link"
 import { useCurrency } from "@/hooks/use-currency"
@@ -73,11 +61,13 @@ import {
   formatDecomposedStockLabel,
   type DecomposedStock,
 } from "@/lib/stock-utils"
-import { useSaleTicket } from "@/hooks/use-sale-ticket"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
-import { matchesAnySearchField } from "@/lib/search-utils"
 import { useT } from "@/i18n/context"
+import {
+  loadPosCheckoutDraft,
+  savePosCheckoutDraft,
+} from "@/lib/pos-checkout-draft"
 
 const POS_FETCH_SIZE = 48
 const POS_PAGE_SIZE = 12
@@ -113,21 +103,13 @@ export default function POSPage() {
   
   // Customer autocomplete states
   const [selectedClientId, setSelectedClientId] = useState<string>("none")
-  const [clientSearch, setClientSearch] = useState("")
-  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false)
+  const [draftHydrated, setDraftHydrated] = useState(false)
   
   const [discount, setDiscount] = useState<number>(0)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   
   // Barcode scan
   const [scanProcessing, setScanProcessing] = useState(false)
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false)
-  const [lastSale, setLastSale] = useState<Sale | null>(null)
-  const { printTicket, printingId } = useSaleTicket(activeStore ? [activeStore] : undefined)
-
-  // Payment State
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false)
-  const [processing, setProcessing] = useState(false)
   const [cashSession, setCashSession] = useState<CashSession | null>(null)
 
   const storeId = activeStore?.id
@@ -178,8 +160,6 @@ export default function POSPage() {
           ENTITY_ROUTES.client.param,
           (id) => {
             setSelectedClientId(id)
-            setIsClientDropdownOpen(false)
-            setClientSearch("")
           },
           {
             successMessage: t(ENTITY_ROUTES.client.createdMessageKey),
@@ -207,7 +187,42 @@ export default function POSPage() {
     CashService.getActiveSession(activeStore.id)
       .then(setCashSession)
       .catch(() => setCashSession(null))
-  }, [activeStore?.id, isPaymentOpen, isSuccessOpen])
+  }, [activeStore?.id])
+
+  useEffect(() => {
+    if (!activeStore?.id) return
+    if (!correctSaleIdParam) {
+      const stored = loadPosCheckoutDraft()
+      if (stored && stored.storeId === activeStore.id && stored.cart.length > 0) {
+        setCart(stored.cart)
+        setDiscount(stored.discount)
+        setSelectedClientId(stored.selectedClientId || "none")
+        setCorrectingSaleId(stored.correctingSaleId)
+        setCorrectingSaleRef(stored.correctingSaleRef)
+      }
+    }
+    setDraftHydrated(true)
+  }, [activeStore?.id, correctSaleIdParam])
+
+  useEffect(() => {
+    if (!draftHydrated || !activeStore?.id) return
+    savePosCheckoutDraft({
+      storeId: activeStore.id,
+      cart,
+      discount,
+      selectedClientId,
+      correctingSaleId,
+      correctingSaleRef,
+    })
+  }, [
+    draftHydrated,
+    activeStore?.id,
+    cart,
+    discount,
+    selectedClientId,
+    correctingSaleId,
+    correctingSaleRef,
+  ])
 
   // Préchargement panier pour correction de vente
   useEffect(() => {
@@ -237,11 +252,8 @@ export default function POSPage() {
         setDiscount(sale.discount || 0)
         if (sale.clientId) {
           setSelectedClientId(sale.clientId)
-          const client = clients.find((c) => c.id === sale.clientId)
-          setClientSearch(client?.name || sale.clientName || "")
         } else {
           setSelectedClientId("none")
-          setClientSearch("")
         }
         setCorrectingSaleId(sale.id)
         setCorrectingSaleRef(sale.id.slice(-6).toUpperCase())
@@ -546,94 +558,17 @@ export default function POSPage() {
       toast.error(t("pos.openCashFirst"))
       return
     }
-    setIsPaymentOpen(true)
+    if (!activeStore || cart.length === 0) return
+    savePosCheckoutDraft({
+      storeId: activeStore.id,
+      cart,
+      discount,
+      selectedClientId,
+      correctingSaleId,
+      correctingSaleRef,
+    })
+    router.push("/pos/checkout")
   }
-
-  const handleCheckout = async (
-    payments: { method: PaymentMethod; amount: number }[],
-    debtAmount: number
-  ) => {
-    if (!activeStore || !userProfile || cart.length === 0) return
-    if (debtAmount > 0 && (!selectedClientId || selectedClientId === "none")) {
-      toast.error(t("pos.selectClientForCredit"))
-      return
-    }
-
-    setProcessing(true)
-    try {
-      let sale: Sale
-      if (correctingSaleId) {
-        const result = await SaleService.correctSale({
-          originalSaleId: correctingSaleId,
-          store: activeStore,
-          user: userProfile,
-          items: cart,
-          clientId: selectedClientId !== "none" ? selectedClientId : undefined,
-          payments,
-          discount,
-          subtotal,
-          total,
-          debtAmount,
-        })
-        sale = result.sale
-        if (result.cancelled.debtNotReversed > 0) {
-          toast.warning(
-            t("pos.correctSaleDebtPartial", {
-              amount: formatAmount(result.cancelled.debtNotReversed),
-            })
-          )
-        }
-        clearCorrectionMode()
-      } else {
-        sale = await SaleService.processSale({
-          store: activeStore,
-          user: userProfile,
-          items: cart,
-          clientId: selectedClientId !== "none" ? selectedClientId : undefined,
-          payments,
-          discount,
-          subtotal,
-          total,
-          debtAmount
-        })
-      }
-
-      setLastSale(sale)
-      setCart([])
-      setSelectedClientId("none")
-      setClientSearch("")
-      setDiscount(0)
-      setIsPaymentOpen(false)
-      setIsSuccessOpen(true)
-      CashService.getActiveSession(activeStore.id).then(setCashSession)
-      void loadStocksForProducts(products)
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : t("pos.transactionError"))
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  const handlePrintTicket = async () => {
-    if (!lastSale) return
-    await printTicket(lastSale)
-  }
-
-  const printingTicket = lastSale ? printingId === lastSale.id : false
-
-  // Filter clients locally for autocomplete
-  const filteredClients = useMemo(() => {
-    if (!clientSearch) return clients.slice(0, 10)
-    return clients
-      .filter((c) => matchesAnySearchField([c.name, c.phone], clientSearch))
-      .slice(0, 10)
-  }, [clients, clientSearch])
-
-  // Get name of selected client
-  const selectedClientName = useMemo(() => {
-    if (selectedClientId === "none") return t("pos.walkInClient")
-    return clients.find(c => c.id === selectedClientId)?.name || t("pos.selectedClient")
-  }, [clients, selectedClientId, t])
 
   const selectedClient = useMemo(
     () => clients.find((c) => c.id === selectedClientId),
@@ -770,7 +705,6 @@ export default function POSPage() {
               setCart([])
               setDiscount(0)
               setSelectedClientId("none")
-              setClientSearch("")
               clearCorrectionMode()
               toast.message(t("pos.correctSaleCancelled"))
             }}
@@ -1092,132 +1026,17 @@ export default function POSPage() {
 
               <CardContent className="p-0">
                 {/* Client de facturation - passage par défaut */}
-                <div className="p-5 border-b border-border space-y-2 relative">
-                  <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider ml-1">
+                <div className="space-y-2 border-b border-border p-5">
+                  <Label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     {t("pos.billingClient")}
                   </Label>
-
-                  <div
-                    className={cn(
-                      "flex items-center justify-between gap-2 rounded-xl border p-2.5",
-                      selectedClientId === "none"
-                        ? "bg-muted/40 border-border"
-                        : "bg-primary/5 border-primary/20"
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Users
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          selectedClientId === "none" ? "text-muted-foreground" : "text-primary"
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <p
-                          className={cn(
-                            "truncate text-xs font-semibold",
-                            selectedClientId === "none" ? "text-foreground" : "text-primary"
-                          )}
-                        >
-                          {selectedClientName}
-                        </p>
-                        {selectedClientId === "none" ? (
-                          <p className="text-[10px] text-muted-foreground">
-                            {t("pos.walkInDefault")}
-                          </p>
-                        ) : selectedClient?.phone ? (
-                          <p className="text-[10px] text-muted-foreground font-mono">{selectedClient.phone}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {selectedClientId !== "none" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedClientId("none")
-                            setClientSearch("")
-                          }}
-                          className="rounded-full p-1 text-primary transition-colors hover:bg-primary/10"
-                          aria-label={t("pos.resetWalkIn")}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-lg text-[11px] font-bold"
-                        onClick={() => setIsClientDropdownOpen(true)}
-                      >
-                        {selectedClientId === "none" ? t("pos.choose") : t("pos.change")}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {isClientDropdownOpen && (
-                    <div className="absolute left-5 right-5 top-full z-20 mt-1.5 rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
-                      <div className="border-b border-border p-2">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            type="text"
-                            placeholder={t("pos.searchClient")}
-                            className="h-9 pl-9 text-xs rounded-lg"
-                            value={clientSearch}
-                            onChange={(e) => setClientSearch(e.target.value)}
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="max-h-48 overflow-y-auto divide-y divide-border text-xs">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedClientId("none")
-                            setIsClientDropdownOpen(false)
-                            setClientSearch("")
-                          }}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-left font-semibold text-foreground transition-colors hover:bg-muted"
-                        >
-                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{t("pos.walkInClient")}</span>
-                        </button>
-
-                        {filteredClients.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedClientId(c.id)
-                              setIsClientDropdownOpen(false)
-                              setClientSearch("")
-                            }}
-                            className="flex w-full flex-col px-4 py-2.5 text-left font-semibold text-foreground transition-colors hover:bg-muted"
-                          >
-                            <span>{c.name}</span>
-                            {c.phone && (
-                              <span className="mt-0.5 font-mono text-[10px] text-muted-foreground">{c.phone}</span>
-                            )}
-                          </button>
-                        ))}
-                        {filteredClients.length === 0 && clientSearch && (
-                          <div className="px-4 py-2.5 text-center text-[11px] italic text-muted-foreground">
-                            {t("pos.noClientMatch")}
-                          </div>
-                        )}
-                      </div>
-                      <SearchListAddFooter entity="client" returnTo="/pos" />
-                    </div>
-                  )}
-
-                  {isClientDropdownOpen && (
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setIsClientDropdownOpen(false)}
-                    />
-                  )}
+                  <PosClientPicker
+                    clients={clients}
+                    selectedClientId={selectedClientId}
+                    selectedClient={selectedClient}
+                    onSelect={setSelectedClientId}
+                    returnTo="/pos"
+                  />
                 </div>
 
                 {/* Cart Items List Area */}
@@ -1498,87 +1317,10 @@ export default function POSPage() {
                     ? t("pos.closedCashBtn")
                     : t("pos.checkout", { amount: formatAmount(total) })}
               </Button>
-
-              <PaymentDialog
-                open={isPaymentOpen}
-                onOpenChange={setIsPaymentOpen}
-                total={total}
-                selectedClientId={selectedClientId}
-                selectedClientName={selectedClientName}
-                selectedClient={selectedClient}
-                processing={processing}
-                onConfirm={handleCheckout}
-              />
-
-              <div className="pt-0.5">
-                <Button 
-                  variant="link" 
-                  className="w-full text-xs text-muted-foreground h-auto p-0 flex items-center justify-center gap-1.5 font-bold hover:text-primary transition-colors" 
-                  onClick={handlePrintTicket}
-                  disabled={!lastSale || printingTicket}
-                >
-                  {printingTicket ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Printer className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <span>{t("pos.lastTicket")}</span>
-                </Button>
-              </div>
             </div>
           </Card>
         </div>
       </div>
-
-      <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
-        <DialogContent className="max-w-sm overflow-hidden rounded-2xl border p-0 text-center shadow-lg">
-          <div className="p-6">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <CheckCircle2 className="h-8 w-8" />
-            </div>
-            <DialogTitle className="text-lg font-bold">{t("pos.saleRecorded")}</DialogTitle>
-            <DialogDescription className="mt-2 text-xs">
-              {t("pos.saleRecordedDesc")}
-            </DialogDescription>
-            {lastSale && (
-              <>
-                <p className="mt-3 font-mono text-sm font-bold text-primary">
-                  #{lastSale.id.slice(-6).toUpperCase()} - {formatAmount(lastSale.total)}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {t("pos.saleForClient", {
-                    name: getSaleClientDisplayName(lastSale, t("pos.walkInClient")),
-                  })}
-                </p>
-              </>
-            )}
-          </div>
-          <div className="space-y-2 border-t bg-muted/20 p-4">
-            <Button
-              onClick={handlePrintTicket}
-              className="w-full rounded-xl font-semibold"
-              disabled={!lastSale || printingTicket}
-            >
-              {printingTicket ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Printer className="mr-2 h-4 w-4" />
-              )}
-              {t("pos.printTicket")}
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full rounded-xl font-semibold"
-              onClick={() => setIsSuccessOpen(false)}
-            >
-              {t("pos.newSale")}
-            </Button>
-            <Button variant="link" className="w-full text-xs text-muted-foreground" asChild>
-              <Link href="/reports/sales">{t("pos.viewSaleHistory")}</Link>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
