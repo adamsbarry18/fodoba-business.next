@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Sale, Product, Client, Supplier, StockLevel } from "@/lib/types";
-import { isSaleCountedInRevenue, isSaleInDateRange } from "@/lib/sale-utils";
+import { isSaleInDateRange, computeSalesReportTotals } from "@/lib/sale-utils";
 import {
   FIRESTORE_IN_QUERY_LIMIT,
   type ReportStoreFilter,
@@ -75,15 +75,7 @@ export const ReportService = {
 
     sales.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
 
-    const counted = sales.filter(isSaleCountedInRevenue);
-    const totals = counted.reduce((acc, s) => ({
-      revenue: acc.revenue + s.total,
-      discount: acc.discount + (s.discount || 0),
-      debt: acc.debt + (s.debtAmount || 0),
-      count: acc.count + 1
-    }), { ...EMPTY_SALES_TOTALS });
-
-    return { sales, totals };
+    return { sales, totals: computeSalesReportTotals(sales) };
   },
 
   emptySalesReport() {

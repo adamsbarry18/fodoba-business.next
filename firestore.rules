@@ -140,10 +140,26 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Caisse et Sessions : Tous les rôles peuvent ouvrir/clôturer (CDC 2.2).
+    // Caisse : tiroir boutique. Tout rôle autorisé peut ouvrir et alimenter
+    // (expectedBalances). Clôture : ouvrant, gérant ou admin.
     match /cash_sessions/{sessionId} {
       allow read: if isSignedIn() && isActive() && isStoreAuthorized(resource.data.storeId);
-      allow write: if isSignedIn() && isActive() && isStoreAuthorized(request.resource.data.storeId);
+      allow create: if isSignedIn() && isActive() && isStoreAuthorized(request.resource.data.storeId);
+      allow delete: if isAdmin();
+      allow update: if isSignedIn() && isActive()
+        && isStoreAuthorized(resource.data.storeId)
+        && isStoreAuthorized(request.resource.data.storeId)
+        && (
+          isAdmin() || isManager()
+          || resource.data.openedBy == request.auth.uid
+          || (
+            request.resource.data.status == resource.data.status
+            && request.resource.data.openedBy == resource.data.openedBy
+            && request.resource.data.storeId == resource.data.storeId
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['expectedBalances'])
+          )
+        );
     }
     
     match /cash_movements/{moveId} {

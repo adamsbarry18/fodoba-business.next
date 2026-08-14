@@ -1,5 +1,6 @@
 import type { CashSession, Purchase, Sale, StockMovement } from "@/lib/types"
 import { resolvePaymentMethodDisplay } from "@/lib/constants/payment-methods"
+import { isCashSessionOpen } from "@/lib/cash-session-utils"
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string
 
@@ -303,7 +304,7 @@ export function getPrintLabels(t: TranslateFn): PrintLabels {
     resolvePurchaseStatus: (status) => t(`badges.purchaseStatus.${status}`),
     resolveStockMovementType: (type) => t(`badges.stockMovement.${type}`),
     resolveCashSessionStatus: (session, totalVariance) => {
-      if (session.status === "OPEN") {
+      if (isCashSessionOpen(session)) {
         return t("print.cashAudit.statusOpen")
       }
       return totalVariance === 0

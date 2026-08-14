@@ -1,4 +1,5 @@
 import { CashSession, CashMovement } from "@/lib/types"
+import type { Role } from "@/lib/types"
 import { PAYMENT_METHOD_IDS } from "@/lib/constants/payment-methods"
 
 const KNOWN_METHOD_ORDER = new Map<string, number>(
@@ -91,7 +92,7 @@ export function getCashAuditSummary(sessions: CashSession[]) {
     return acc + Object.values(s.variances).reduce((sum, v) => sum + v, 0)
   }, 0)
 
-  const closedSessions = sessions.filter((s) => s.status === "CLOSED")
+  const closedSessions = sessions.filter((s) => isCashSessionClosed(s))
   const conformSessions = closedSessions.filter((s) => {
     if (!s.variances) return true
     return Object.values(s.variances).every((v) => v === 0)
@@ -109,3 +110,95 @@ export function getCashAuditSummary(sessions: CashSession[]) {
     conformCount: conformSessions.length,
   }
 }
+
+const OPEN_STATUS_ALIASES = new Set(["OPEN", "open"])
+const CLOSED_STATUS_ALIASES = new Set(["CLOSED", "closed"])
+
+export function isCashSessionOpen(session: Pick<CashSession, "status"> | null | undefined): boolean {
+  if (!session?.status) return false
+  return OPEN_STATUS_ALIASES.has(String(session.status))
+}
+
+export function isCashSessionClosed(session: Pick<CashSession, "status"> | null | undefined): boolean {
+  if (!session?.status) return false
+  return CLOSED_STATUS_ALIASES.has(String(session.status))
+}
+
+export function cashSessionStatusBadgeValue(
+  session: Pick<CashSession, "status"> | null | undefined
+): "OPEN" | "CLOSED" {
+  return isCashSessionOpen(session) ? "OPEN" : "CLOSED"
+}
+
+function sessionOpenedAtMs(session: Pick<CashSession, "openedAt">): number {
+  return toCashSessionDate(session.openedAt)?.getTime() ?? 0
+}
+
+export function pickLatestOpenSession(sessions: CashSession[]): CashSession | null {
+  const open = sessions.filter(isCashSessionOpen)
+  if (open.length === 0) return null
+  return [...open].sort((a, b) => sessionOpenedAtMs(b) - sessionOpenedAtMs(a))[0] ?? null
+}
+
+/** Date de session sûre (évite « Invalid Date » si openedAt est absent ou mal formé). */
+export function toCashSessionDate(ts: unknown): Date | null {
+  if (ts == null) return null
+  if (typeof ts === "object" && "toDate" in ts) {
+    const toDate = (ts as { toDate?: () => Date }).toDate
+    if (typeof toDate === "function") {
+      const date = toDate.call(ts)
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null
+    }
+  }
+  if (typeof ts === "object" && ts !== null && "seconds" in ts) {
+    const seconds = (ts as { seconds: unknown }).seconds
+    if (typeof seconds === "number") {
+      const date = new Date(seconds * 1000)
+      return Number.isNaN(date.getTime()) ? null : date
+    }
+  }
+  if (typeof ts === "string" || typeof ts === "number" || ts instanceof Date) {
+    const date = new Date(ts)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  return null
+}
+
+function isManagerOrAdmin(role: Role | null | undefined): boolean {
+  return role === "admin" || role === "manager"
+}
+
+/** Gérant / admin : tout le tiroir. Vendeur : seulement s'il a ouvert la session. */
+export function canViewCashBalances(
+  role: Role | null | undefined,
+  session: Pick<CashSession, "openedBy"> | null | undefined,
+  uid: string | undefined
+): boolean {
+  if (isManagerOrAdmin(role)) return true
+  if (!session || !uid) return false
+  return session.openedBy === uid
+}
+
+export function canCloseCashSession(
+  role: Role | null | undefined,
+  session: CashSession | null | undefined,
+  uid: string | undefined
+): boolean {
+  if (!isCashSessionOpen(session)) return false
+  return canViewCashBalances(role, session, uid)
+}
+
+export function canManageCashFund(
+  role: Role | null | undefined,
+  session: CashSession | null | undefined,
+  uid: string | undefined
+): boolean {
+  return canCloseCashSession(role, session, uid)
+}
+
+export function canViewCashHistory(role: Role | null | undefined): boolean {
+  return isManagerOrAdmin(role)
+}
+
+export const CASH_OPEN_STATUS_VALUES = ["OPEN", "open"] as const
+

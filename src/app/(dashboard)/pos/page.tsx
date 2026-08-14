@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
+import { cashSessionStatusBadgeValue } from "@/lib/cash-session-utils"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { PosClientPicker } from "@/components/pos/pos-client-picker"
@@ -64,6 +65,8 @@ import {
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT } from "@/i18n/context"
+import { DecimalInput } from "@/components/ui/decimal-input"
+import { isQuantityAtLeast, roundQuantity } from "@/lib/quantity-utils"
 import {
   loadPosCheckoutDraft,
   savePosCheckoutDraft,
@@ -435,7 +438,7 @@ export default function POSPage() {
 
       if (targetIndex !== -1 && targetIndex !== lineIndex) {
         const convertedQty = convertCartQuantityForTierChange(item.quantity)
-        const mergedQty = prev[targetIndex].quantity + convertedQty
+        const mergedQty = roundQuantity(prev[targetIndex].quantity + convertedQty)
         return prev
           .filter((_, i) => i !== lineIndex)
           .map(i =>
@@ -493,7 +496,7 @@ export default function POSPage() {
       if (key !== lineKey) return item
 
       const product = products.find(p => p.id === item.productId)
-      const newQty = Math.max(0, item.quantity + delta)
+      const newQty = roundQuantity(Math.max(0, item.quantity + delta))
       if (!product) {
         return { ...item, quantity: newQty, total: newQty * item.unitPrice }
       }
@@ -501,21 +504,18 @@ export default function POSPage() {
     }).filter(item => item.quantity > 0))
   }
 
-  const setQty = (lineKey: string, rawValue: string) => {
-    if (rawValue.trim() === "") {
-      setCart((prev) =>
-        prev.map((item) => {
-          const key = getCartLineKey(item.productId, item.priceTier ?? "retail")
-          if (key !== lineKey) return item
-          return { ...item, quantity: 0, retailQuantity: 0, total: 0 }
-        })
-      )
-      return
-    }
+  const clearQty = (lineKey: string) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        const key = getCartLineKey(item.productId, item.priceTier ?? "retail")
+        if (key !== lineKey) return item
+        return { ...item, quantity: 0, retailQuantity: 0, total: 0 }
+      })
+    )
+  }
 
-    const parsed = Number.parseInt(rawValue, 10)
-    if (!Number.isFinite(parsed) || parsed < 0) return
-    const newQty = Math.max(0, parsed)
+  const setQtyValue = (lineKey: string, rawQty: number) => {
+    const newQty = roundQuantity(Math.max(0, rawQty))
 
     setCart((prev) =>
       prev.map((item) => {
@@ -638,13 +638,16 @@ export default function POSPage() {
               </StatusBadge>
               <StatusBadge
                 preset="cashSessionStatus"
-                value={cashSession ? "OPEN" : "CLOSED"}
+                value={cashSessionStatusBadgeValue(cashSession)}
                 className="text-[9px] uppercase"
               />
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
               <User className="h-3.5 w-3.5" />
               {t("pos.cashier")} : {userProfile?.firstName} {userProfile?.lastName}
+              {cashSession?.openedByName
+                ? ` · ${t("pos.sharedDrawerOpen", { name: cashSession.openedByName })}`
+                : ""}
             </div>
           </div>
         </div>
@@ -1095,7 +1098,9 @@ export default function POSPage() {
                               : stockRecord.quantity
                             : null
                         const exceedsStock =
-                          availableForTier != null && item.quantity > availableForTier
+                          availableForTier != null &&
+                          item.quantity > 0 &&
+                          !isQuantityAtLeast(availableForTier, item.quantity)
 
                         return (
                           <div
@@ -1212,13 +1217,12 @@ export default function POSPage() {
                                   >
                                     <Minus className="h-3 w-3 text-muted-foreground" />
                                   </Button>
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    inputMode="numeric"
-                                    value={item.quantity === 0 ? "" : item.quantity}
-                                    onChange={(e) => setQty(lineKey, e.target.value)}
-                                    onFocus={(e) => e.target.select()}
+                                  <DecimalInput
+                                    min={0}
+                                    allowEmpty
+                                    value={item.quantity}
+                                    onValueChange={(qty) => setQtyValue(lineKey, qty)}
+                                    onEmpty={() => clearQty(lineKey)}
                                     onBlur={() => commitQty(lineKey)}
                                     aria-label={t("pos.quantity")}
                                     className="h-7 flex-1 border-0 bg-transparent px-0 text-center text-xs font-extrabold shadow-none focus-visible:ring-0"

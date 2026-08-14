@@ -27,6 +27,7 @@ import {
   FileText,
   AlertCircle,
   RefreshCw,
+  ShoppingCart,
 } from "lucide-react"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
@@ -43,6 +44,13 @@ import {
   getCashAuditSummary,
   getExpectedBalanceEntries,
   MOVEMENT_SOURCE_LABELS,
+  toCashSessionDate,
+  pickLatestOpenSession,
+  canViewCashBalances,
+  canCloseCashSession,
+  canManageCashFund,
+  canViewCashHistory,
+  cashSessionStatusBadgeValue,
 } from "@/lib/cash-session-utils"
 import {
   CashFundDialog,
@@ -54,6 +62,7 @@ import { TablePagination } from "@/components/ui/table-pagination"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
 import { RoleGuard } from "@/components/auth/role-guard"
+import { usePermissions } from "@/hooks/use-permissions"
 
 const MOVEMENTS_PAGE_SIZE = 25
 const HISTORY_PAGE_SIZE = 25
@@ -64,10 +73,12 @@ export default function ReconciliationPage() {
   const dateLocale = useMemo(() => getDateLocale(locale), [locale])
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
+  const { role } = usePermissions()
   const { formatAmount } = useCurrency()
   const paymentMethodLabel = usePaymentMethodLabel()
 
   const [activeSession, setActiveSession] = useState<CashSession | null>(null)
+  const [openSessionCount, setOpenSessionCount] = useState(0)
   const [movements, setMovements] = useState<CashMovement[]>([])
   const [history, setHistory] = useState<CashSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -88,12 +99,19 @@ export default function ReconciliationPage() {
   )
 
   const formatTimestamp = useCallback(
-    (ts: { toDate?: () => Date } | undefined) => {
-      if (!ts?.toDate) return "-"
-      return format(ts.toDate(), "dd MMM yyyy HH:mm", { locale: dateLocale })
+    (ts: unknown) => {
+      const date = toCashSessionDate(ts)
+      if (!date) return "-"
+      return format(date, "dd MMM yyyy HH:mm", { locale: dateLocale })
     },
     [dateLocale]
   )
+
+  const uid = userProfile?.uid
+  const canSeeBalances = canViewCashBalances(role, activeSession, uid)
+  const canClose = canCloseCashSession(role, activeSession, uid)
+  const canFund = canManageCashFund(role, activeSession, uid)
+  const canSeeHistory = canViewCashHistory(role)
 
   const loadData = useCallback(async () => {
     const storeId = activeStore?.id
@@ -106,14 +124,18 @@ export default function ReconciliationPage() {
     }
     setLoading(true)
     try {
-      const [session, pastSessions] = await Promise.all([
-        CashService.getActiveSession(storeId),
-        CashService.listSessions(storeId, 10),
+      const [openSessions, pastSessions] = await Promise.all([
+        CashService.listOpenSessions(storeId),
+        canViewCashHistory(role)
+          ? CashService.listSessions(storeId, 10)
+          : Promise.resolve([] as CashSession[]),
       ])
+      const session = pickLatestOpenSession(openSessions)
+      setOpenSessionCount(openSessions.length)
       setActiveSession(session)
       setHistory(pastSessions)
 
-      if (session) {
+      if (session && canViewCashBalances(role, session, userProfile?.uid)) {
         const moves = await CashService.getMovements(session.id, storeId)
         setMovements(moves)
         const initialActual: Record<string, string> = {}
@@ -131,7 +153,7 @@ export default function ReconciliationPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeStore?.id, t])
+  }, [activeStore?.id, role, t, userProfile?.uid])
 
   useEffect(() => {
     void loadData()
@@ -212,6 +234,10 @@ export default function ReconciliationPage() {
 
   const handleCloseCash = async () => {
     if (!activeSession || !userProfile) return
+    if (!canCloseCashSession(role, activeSession, userProfile.uid)) {
+      toast.error(t("reconciliation.cannotCloseOthers"))
+      return
+    }
     if (!allBalancesFilled) {
       toast.error(t("reconciliation.fillAllBeforeClose"))
       return
@@ -237,6 +263,10 @@ export default function ReconciliationPage() {
 
   const handleFundMovement = async (values: CashFundFormValues) => {
     if (!activeStore || !userProfile || !activeSession) return
+    if (!canManageCashFund(role, activeSession, userProfile.uid)) {
+      toast.error(t("reconciliation.cannotCloseOthers"))
+      return
+    }
 
     setProcessing(true)
     try {
@@ -327,7 +357,7 @@ export default function ReconciliationPage() {
               <h1 className="text-3xl font-bold tracking-tight">{t("reconciliation.title")}</h1>
               <StatusBadge
                 preset="cashSessionStatus"
-                value={activeSession ? "OPEN" : "CLOSED"}
+                value={cashSessionStatusBadgeValue(activeSession)}
                 className="text-[10px] font-bold uppercase"
               >
                 {activeSession ? t("reconciliation.sessionOpen") : t("reconciliation.sessionClosed")}
@@ -359,6 +389,7 @@ export default function ReconciliationPage() {
           </RoleGuard>
 
           {activeSession ? (
+            canFund ? (
             <>
               <Button
                 variant="outline"
@@ -374,6 +405,7 @@ export default function ReconciliationPage() {
                 onSubmit={handleFundMovement}
               />
             </>
+            ) : null
           ) : (
             <Button
               onClick={handleOpenCash}
@@ -390,6 +422,13 @@ export default function ReconciliationPage() {
           )}
         </div>
       </div>
+
+      {openSessionCount > 1 && canSeeHistory && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-sm text-amber-900 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>{t("reconciliation.multipleOpenWarning", { count: openSessionCount })}</p>
+        </div>
+      )}
 
       {!activeSession ? (
         <Card className="rounded-2xl border bg-card shadow-sm">
@@ -408,6 +447,32 @@ export default function ReconciliationPage() {
             >
               <Unlock className="mr-2 h-4 w-4" />
               {t("reconciliation.openCash")}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : !canSeeBalances ? (
+        <Card className="rounded-2xl border bg-card shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <div className="rounded-2xl border bg-muted/30 p-5">
+              <Unlock className="h-12 w-12 text-primary/60" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold">{t("reconciliation.sessionOpen")}</h3>
+              <p className="text-sm text-foreground">
+                {t("reconciliation.openedBy", {
+                  name: activeSession.openedByName,
+                  date: formatTimestamp(activeSession.openedAt),
+                })}
+              </p>
+              <p className="mx-auto max-w-md text-sm text-muted-foreground">
+                {t("reconciliation.sharedDrawerHint")}
+              </p>
+            </div>
+            <Button asChild className="rounded-xl font-semibold">
+              <Link href="/pos">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                {t("reconciliation.goToPos")}
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -759,7 +824,7 @@ export default function ReconciliationPage() {
                 <Button
                   className="mt-auto h-11 w-full shrink-0 rounded-xl font-bold"
                   onClick={handleCloseCash}
-                  disabled={processing || !allBalancesFilled}
+                  disabled={processing || !allBalancesFilled || !canClose}
                 >
                   {processing ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -774,6 +839,7 @@ export default function ReconciliationPage() {
         </>
       )}
 
+      {canSeeHistory && (
       <Card className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <CardHeader className="flex flex-col gap-3 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
@@ -834,19 +900,22 @@ export default function ReconciliationPage() {
               ) : (
                 paginatedHistory.map((session) => {
                   const { totalExpected, totalActual, totalVar } = getSessionTotals(session)
-                  const openedAt = session.openedAt?.toDate?.() ?? new Date()
+                  const openedAt = toCashSessionDate(session.openedAt)
+                  const closedAt = toCashSessionDate(session.closedAt)
 
                   return (
                     <TableRow key={session.id} className="group">
                       <TableCell className="pl-4 sm:pl-6">
                         <div>
                           <p className="text-xs font-semibold">
-                            {format(openedAt, "dd MMM yyyy", { locale: dateLocale })}
+                            {openedAt
+                              ? format(openedAt, "dd MMM yyyy", { locale: dateLocale })
+                              : "-"}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {format(openedAt, "HH:mm")}
-                            {session.closedAt
-                              ? ` → ${format(session.closedAt.toDate(), "HH:mm")}`
+                            {openedAt ? format(openedAt, "HH:mm") : "-"}
+                            {closedAt
+                              ? ` → ${format(closedAt, "HH:mm")}`
                               : ` → ${t("reconciliation.sessionOngoing")}`}
                           </p>
                         </div>
@@ -874,7 +943,7 @@ export default function ReconciliationPage() {
                       <TableCell className="pr-4 sm:pr-6">
                         <StatusBadge
                           preset="cashSessionStatus"
-                          value={session.status}
+                          value={cashSessionStatusBadgeValue(session)}
                           className="text-[9px] uppercase"
                         />
                       </TableCell>
@@ -894,6 +963,7 @@ export default function ReconciliationPage() {
           />
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

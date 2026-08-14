@@ -29,6 +29,7 @@ import {
   type DecomposedStock,
 } from "@/lib/stock-utils";
 import { getRetailUnitsPerPack, canonicalizeProductUnit } from "@/lib/product-utils";
+import { roundQuantity } from "@/lib/quantity-utils";
 import {
   matchesAnySearchField,
   normalizeSearchText,
@@ -411,7 +412,7 @@ export const ProductService = {
     const stock: StockLevel = {
       productId,
       storeId,
-      quantity: Math.max(0, quantity),
+      quantity: Math.max(0, roundQuantity(quantity)),
       lastUpdated: serverTimestamp(),
     };
     await setDoc(docRef, stock);

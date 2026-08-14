@@ -2,6 +2,7 @@ import type { Product } from "@/lib/types"
 import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
 import frMessages from "@/i18n/messages/fr.json"
 import { getNestedMessage, nestMessages } from "@/i18n/nest-messages"
+import { formatQuantity, roundQuantity } from "@/lib/quantity-utils"
 
 const nestedFrMessages = nestMessages(frMessages)
 
@@ -215,17 +216,17 @@ export function computeInitialStockTotal(
   const packs = Math.max(0, initialPackaging)
   const packUnits = Math.max(1, unitsPerPack) * Math.max(1, retailQtyFactor)
   const loose = Math.max(0, detailStock)
-  return packs * packUnits + loose
+  return roundQuantity(packs * packUnits + loose)
 }
 
 export function decomposeStock(totalRetail: number, unitsPerPack: number) {
   const ratio = Math.max(1, unitsPerPack)
+  const safeTotal = roundQuantity(Math.max(0, totalRetail))
   if (ratio <= 1) {
-    return { packs: 0, loose: Math.max(0, totalRetail) }
+    return { packs: 0, loose: safeTotal }
   }
-  const safeTotal = Math.max(0, totalRetail)
   const packs = Math.floor(safeTotal / ratio)
-  const loose = safeTotal % ratio
+  const loose = roundQuantity(safeTotal - packs * ratio)
   return { packs, loose }
 }
 
@@ -244,10 +245,10 @@ export function formatStockBreakdown(
   const unitLabel = formatUnit(normalized.unit)
   const parts: string[] = []
   if (packs > 0) {
-    parts.push(`${packs} ${packLabel}`)
+    parts.push(`${formatQuantity(packs)} ${packLabel}`)
   }
   if (loose > 0) {
-    parts.push(`${loose} ${unitLabel}`)
+    parts.push(`${formatQuantity(loose)} ${unitLabel}`)
   }
   if (parts.length === 0) return `0 ${unitLabel}`
   return parts.join(separator)

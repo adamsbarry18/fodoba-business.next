@@ -17,6 +17,7 @@ import { db } from "@/lib/firebase/client";
 import { StockMovement, StockLevel, Product, Store, UserProfile } from "@/lib/types";
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper";
 import { stripUndefined } from "@/lib/firestore-utils";
+import { QUANTITY_MIN, roundQuantity } from "@/lib/quantity-utils";
 import {
   buildDecomposedStock,
   buildStockLevelPayload,
@@ -369,7 +370,7 @@ export const InventoryService = {
     reason?: string
   }) {
     const { productId, fromStoreId, toStoreId, quantity, user, reason } = params;
-    if (quantity <= 0) throw new Error("La quantité doit être supérieure à 0");
+    if (roundQuantity(quantity) < QUANTITY_MIN) throw new Error("La quantité doit être supérieure à 0");
     if (fromStoreId === toStoreId) throw new Error("Les boutiques source et destination doivent être différentes");
 
     const fromStockId = `${fromStoreId}_${productId}`;

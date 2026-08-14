@@ -59,6 +59,7 @@ import { TableListToolbar } from "@/components/ui/table-list-toolbar"
 import { STOCK_HISTORY_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
+import { formatQuantity } from "@/lib/quantity-utils"
 
 const PAGE_SIZE = 50
 
@@ -454,13 +455,15 @@ export default function StockHistoryPage() {
                               value={move.delta > 0 ? "positive" : "negative"}
                               className="text-[10px] font-bold"
                             >
-                              {move.delta > 0 ? `+${move.delta}` : move.delta}
+                              {move.delta > 0
+                                ? `+${formatQuantity(move.delta, locale)}`
+                                : formatQuantity(move.delta, locale)}
                             </StatusBadge>
                           </TableCell>
                         </VisibleTableColumn>
                         <VisibleTableColumn id="finalStock" isVisible={isVisible}>
                           <TableCell className="text-center font-headline font-bold">
-                            {move.newStock}
+                            {formatQuantity(move.newStock, locale)}
                           </TableCell>
                         </VisibleTableColumn>
                         <VisibleTableColumn id="author" isVisible={isVisible}>

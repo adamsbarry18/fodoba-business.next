@@ -7,9 +7,11 @@ import { Sale, Store, Purchase, StockMovement, Product, CashSession } from '@/li
 import { formatPdfMoney, formatPdfNumber, sanitizePdfText } from '@/lib/utils';
 import { PAYMENT_METHOD_IDS } from '@/lib/constants/payment-methods';
 import { getAppName } from '@/lib/constants/branding';
+import { isCashSessionClosed, toCashSessionDate } from '@/lib/cash-session-utils';
 import { normalizeProduct, getProductUnitLabelFr } from '@/lib/product-utils';
 import { formatDecomposedStockLabel, type DecomposedStock } from '@/lib/stock-utils';
 import { formatSaleItemName, formatSaleItemQuantity } from '@/lib/pos-utils';
+import { formatQuantity } from '@/lib/quantity-utils';
 import { buildSaleClientReceiptLines, isRegisteredSaleClient } from '@/lib/sale-client-utils';
 import type {
   PrintLabels,
@@ -251,7 +253,7 @@ export const PrintService = {
       head: [[l.product, l.qty, l.unitCost, l.currency, l.totalFcfa]],
       body: purchase.items.map(i => [
         i.name, 
-        i.quantity, 
+        formatQuantity(i.quantity), 
         formatPdfNumber(i.unitCost),
         i.currency,
         formatMoney(i.quantity * i.unitCost * i.exchangeRate)
@@ -286,7 +288,7 @@ export const PrintService = {
     autoTable(doc, {
       startY: y + 20,
       head: [[l.article, l.quantity, l.unit, l.source]],
-      body: [[movement.productName, Math.abs(movement.delta), l.pieceUnit, movement.storeName]],
+      body: [[movement.productName, formatQuantity(Math.abs(movement.delta)), l.pieceUnit, movement.storeName]],
       headStyles: { fillColor: [59, 130, 246] }
     });
 
@@ -362,12 +364,12 @@ export const PrintService = {
     this.drawHeader(doc, l.title, store, labels.phoneShort);
 
     const formatTs = (ts: CashSession['openedAt']) => {
-      if (!ts) return '-';
-      const date = ts?.toDate ? ts.toDate() : new Date(ts);
+      const date = toCashSessionDate(ts);
+      if (!date) return '-';
       return format(date, 'dd/MM/yyyy HH:mm');
     };
 
-    const closedSessions = sessions.filter((s) => s.status === 'CLOSED');
+    const closedSessions = sessions.filter((s) => isCashSessionClosed(s));
     const conformCount = closedSessions.filter((s) => {
       if (!s.variances) return true;
       return Object.values(s.variances).every((v) => v === 0);
@@ -562,8 +564,8 @@ export const PrintService = {
         const record = stockRecords[s.id] ?? { packagingQty: 0, detailQty: 0, quantity: 0 };
         const hasPackaging = normalized.unitsPerPack > 1 && !!normalized.packagingUnit;
         const quantityLabel = hasPackaging
-          ? `${formatDecomposedStockLabel(record, product, ' + ', getProductUnitLabelFr)} (${record.quantity} ${unitLabel})`
-          : String(record.quantity);
+          ? `${formatDecomposedStockLabel(record, product, ' + ', getProductUnitLabelFr)} (${formatQuantity(record.quantity)} ${unitLabel})`
+          : formatQuantity(record.quantity);
         return [s.name, s.code, quantityLabel, unitLabel];
       }),
       headStyles: { fillColor: [29, 217, 124] },

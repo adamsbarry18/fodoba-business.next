@@ -31,7 +31,8 @@ import { formatPurchaseRef, getLandedCostUnit, PURCHASE_STATUS_ICONS, canEditPur
 import { usePermissions } from "@/hooks/use-permissions"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { PurchaseReceptionDialog } from "@/components/purchases/purchase-reception-dialog"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
+import { formatQuantity } from "@/lib/quantity-utils"
 import { useCurrency } from "@/hooks/use-currency"
 
 export default function PurchaseDetailsPage() {
@@ -42,6 +43,7 @@ export default function PurchaseDetailsPage() {
   const { formatAmount } = useCurrency()
   const { can } = usePermissions()
   const t = useT()
+  const { locale } = useLocale()
   const [purchase, setPurchase] = useState<Purchase | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
@@ -208,7 +210,7 @@ export default function PurchaseDetailsPage() {
                     <p className="font-bold">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {t("purchases.unitsAt", {
-                        quantity: item.quantity,
+                        quantity: formatQuantity(item.quantity, locale),
                         cost: item.unitCost.toLocaleString("fr-FR"),
                         currency: item.currency,
                       })}

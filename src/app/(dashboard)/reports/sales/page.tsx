@@ -63,7 +63,12 @@ import { SaleClientInfo } from "@/components/sales/sale-client-info"
 import { PrintService } from "@/services/print.service"
 import { getPrintLabels } from "@/lib/print-labels"
 import { downloadSalesCsv } from "@/lib/sales-export-utils"
-import { canCancelOrCorrectSale } from "@/lib/sale-utils"
+import {
+  canCancelOrCorrectSale,
+  canViewAllStoreSales,
+  filterSalesForRole,
+  computeSalesReportTotals,
+} from "@/lib/sale-utils"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { RoleGuard } from "@/components/auth/role-guard"
@@ -126,6 +131,7 @@ function SalesReportContent() {
   const { formatAmount } = useCurrency()
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
+  const seeAllStoreSales = canViewAllStoreSales(userProfile?.role)
   const {
     storeId,
     setStoreId,
@@ -140,10 +146,11 @@ function SalesReportContent() {
   const { printTicket, printingId } = useSaleTicket(stores)
   const [totals, setTotals] = useState({ revenue: 0, discount: 0, debt: 0, count: 0 })
 
-  const defaultRange = getSalesPeriodRange("30d")
+  const defaultPreset: SalesPeriodPreset = seeAllStoreSales ? "30d" : "today"
+  const defaultRange = getSalesPeriodRange(defaultPreset)
   const [startDate, setStartDate] = useState(defaultRange.startDate)
   const [endDate, setEndDate] = useState(defaultRange.endDate)
-  const [periodPreset, setPeriodPreset] = useState<SalesPeriodPreset | "custom">("30d")
+  const [periodPreset, setPeriodPreset] = useState<SalesPeriodPreset | "custom">(defaultPreset)
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null)
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
   const [cancelReason, setCancelReason] = useState("")
@@ -186,14 +193,19 @@ function SalesReportContent() {
         endDate: endOfDay(new Date(`${endDate}T00:00:00`)),
         ...filter,
       })
-      setSales(salesRes.sales)
-      setTotals(salesRes.totals)
+      const visibleSales = filterSalesForRole(
+        salesRes.sales,
+        userProfile?.role,
+        userProfile?.uid
+      )
+      setSales(visibleSales)
+      setTotals(computeSalesReportTotals(visibleSales))
     } catch {
       toast.error(t("common.errorLoading"))
     } finally {
       setLoading(false)
     }
-  }, [endDate, filter, startDate, t])
+  }, [endDate, filter, startDate, t, userProfile?.role, userProfile?.uid])
 
   useEffect(() => {
     void loadData()
@@ -325,7 +337,11 @@ function SalesReportContent() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t("reports.sales.title")}</h1>
-            <p className="text-muted-foreground">{t("reports.sales.subtitle")}</p>
+            <p className="text-muted-foreground">
+              {seeAllStoreSales
+                ? t("reports.sales.subtitle")
+                : t("reports.sales.mySalesOnly")}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">

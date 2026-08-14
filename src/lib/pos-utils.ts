@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react"
 import { Wallet, HandCoins, CreditCard, Split } from "lucide-react"
 import { getProductUnitLabelFr, normalizeProduct } from "@/lib/product-utils"
 import { getSaleItemRetailQuantity as computeRetailQuantity } from "@/lib/stock-utils"
+import { formatQuantity, roundQuantity } from "@/lib/quantity-utils"
 
 export function getCartLineKey(productId: string, priceTier: PriceTier = "retail"): string {
   return `${productId}:${priceTier}`
@@ -55,7 +56,8 @@ export function getSaleItemStatsQuantity(item: SaleItem, product?: Product): num
  * (ex. 1 casier → détail = 1 pièce, pas 24). L'utilisateur ajuste ensuite.
  */
 export function convertCartQuantityForTierChange(quantity: number): number {
-  return Math.max(1, Math.floor(Number(quantity) || 1))
+  const qty = roundQuantity(Number(quantity) || 0)
+  return qty > 0 ? qty : 1
 }
 
 export function buildSaleItemFromProduct(
@@ -80,11 +82,13 @@ export function buildSaleItemFromProduct(
 /** Recalcule saleUnit, retailQuantity et total après changement de qté ou de tier */
 export function syncSaleItemQuantities(item: SaleItem, product: Product): SaleItem {
   const tier = item.priceTier ?? "retail"
+  const quantity = roundQuantity(Math.max(0, item.quantity))
+  const synced = { ...item, quantity }
   return {
-    ...item,
+    ...synced,
     saleUnit: getSaleQuantityUnit(product, tier),
-    retailQuantity: getSaleItemRetailQuantity(item, product),
-    total: item.quantity * item.unitPrice,
+    retailQuantity: getSaleItemRetailQuantity(synced, product),
+    total: quantity * item.unitPrice,
   }
 }
 
@@ -93,10 +97,11 @@ export function formatSaleItemName(item: SaleItem, wholesaleSuffix = " (Engros)"
 }
 
 export function formatSaleItemQuantity(item: SaleItem): string {
+  const qtyLabel = formatQuantity(item.quantity)
   if (item.saleUnit) {
-    return `${item.quantity} ${getProductUnitLabelFr(item.saleUnit)}`
+    return `${qtyLabel} ${getProductUnitLabelFr(item.saleUnit)}`
   }
-  return String(item.quantity)
+  return qtyLabel
 }
 
 export function getCartItemCount(cart: SaleItem[]): number {

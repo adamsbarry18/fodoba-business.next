@@ -28,7 +28,7 @@ import { CashService } from "@/services/cash.service"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { useCurrency } from "@/hooks/use-currency"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
 import { usePosPaymentForm } from "@/hooks/use-pos-payment-form"
 import { useSaleTicket } from "@/hooks/use-sale-ticket"
 import { applyReturnSelection } from "@/hooks/use-return-selection"
@@ -41,6 +41,7 @@ import {
   POS_PAYMENT_MODES,
 } from "@/lib/pos-utils"
 import { getProductUnitLabel } from "@/lib/product-utils"
+import { formatQuantity } from "@/lib/quantity-utils"
 import {
   clearPosCheckoutDraft,
   loadPosCheckoutDraft,
@@ -122,6 +123,7 @@ function AlertBlock({ message, tone = "danger" }: { message: string; tone?: "dan
 
 export function PosCheckoutView() {
   const t = useT()
+  const { locale } = useLocale()
   const router = useRouter()
   const { formatAmount } = useCurrency()
   const { activeStore } = useStore()
@@ -679,7 +681,7 @@ export function PosCheckoutView() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{item.name}</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {item.quantity} {formatUnit(item.saleUnit)} · {formatAmount(item.unitPrice)}
+                      {formatQuantity(item.quantity, locale)} {formatUnit(item.saleUnit)} · {formatAmount(item.unitPrice)}
                     </p>
                   </div>
                   <p className="shrink-0 font-headline text-sm font-bold">

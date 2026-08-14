@@ -62,6 +62,12 @@ import {
   type DashboardTimeRange,
 } from "@/lib/dashboard-utils"
 import { getProductUnitLabel, getStockStatus } from "@/lib/product-utils"
+import { filterSalesForRole, canViewAllStoreSales } from "@/lib/sale-utils"
+import {
+  canViewCashBalances,
+  cashSessionStatusBadgeValue,
+} from "@/lib/cash-session-utils"
+import { RoleGuard } from "@/components/auth/role-guard"
 import { cn } from "@/lib/utils"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
@@ -77,8 +83,12 @@ export default function DashboardPage() {
   const { activeStore, availableStores } = useStore()
   const { formatAmount } = useCurrency()
   const canViewSupplierDebts = can("view:reports:suppliers")
+  const canViewClientDebts = can("view:reports:clients")
+  const seeAllStoreSales = canViewAllStoreSales(userProfile?.role)
   const [loading, setLoading] = useState(true)
-  const [timeRange, setTimeRange] = useState<DashboardTimeRange>("7d")
+  const [timeRange, setTimeRange] = useState<DashboardTimeRange>(
+    seeAllStoreSales ? "7d" : "24h"
+  )
   const t = useT()
   const { locale } = useLocale()
   const dateLocale = useMemo(() => getDateLocale(locale), [locale])
@@ -106,7 +116,9 @@ export default function DashboardPage() {
     setLoading(true)
     try {
       const [clientsRes, suppliersRes, salesRes, sessionRes, productsRes] = await Promise.all([
-        fetchWithCache("clients:list", () => ClientService.listClients(), 120_000),
+        canViewClientDebts
+          ? fetchWithCache("clients:list", () => ClientService.listClients(), 120_000)
+          : Promise.resolve([] as Client[]),
         canViewSupplierDebts
           ? fetchWithCache("suppliers:list", () => SupplierService.listSuppliers(), 120_000)
           : Promise.resolve([] as Supplier[]),
@@ -117,7 +129,7 @@ export default function DashboardPage() {
 
       setClients(clientsRes)
       setSuppliers(suppliersRes)
-      setSales(salesRes.sales)
+      setSales(filterSalesForRole(salesRes.sales, userProfile?.role, uid))
       setCashSession(sessionRes)
 
       const productIds = productsRes.products.map((p) => p.id)
@@ -140,12 +152,13 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [userProfile?.uid, activeStore?.id, canViewSupplierDebts, t])
+  }, [userProfile?.uid, userProfile?.role, activeStore?.id, canViewSupplierDebts, canViewClientDebts, t])
 
   useEffect(() => {
     void loadDashboardData()
   }, [loadDashboardData])
 
+  const canSeeCashAmounts = canViewCashBalances(userProfile?.role, cashSession, userProfile?.uid)
   const stats = useMemo(
     () => getDashboardStats(sales, clients, suppliers, timeRange, cashSession, dateLocale),
     [sales, clients, suppliers, timeRange, cashSession, dateLocale]
@@ -194,7 +207,7 @@ export default function DashboardPage() {
               </span>
               <StatusBadge
                 preset="cashSessionStatus"
-                value={stats.isCashOpen ? "OPEN" : "CLOSED"}
+                value={cashSessionStatusBadgeValue(cashSession)}
                 className="text-[9px] uppercase"
               />
             </div>
@@ -241,7 +254,7 @@ export default function DashboardPage() {
       <div
         className={cn(
           "grid grid-cols-1 gap-4 sm:grid-cols-2",
-          canViewSupplierDebts ? "xl:grid-cols-4" : "xl:grid-cols-3"
+          canViewSupplierDebts && canViewClientDebts ? "xl:grid-cols-4" : "xl:grid-cols-3"
         )}
       >
         <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
@@ -251,7 +264,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                {t("dashboard.storeRevenue")}
+                {seeAllStoreSales ? t("dashboard.storeRevenue") : t("dashboard.myRevenue")}
               </p>
               <p className="truncate text-sm font-bold">{formatAmount(stats.periodRevenue)}</p>
               <p className="truncate text-[10px] text-muted-foreground">
@@ -261,6 +274,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {canViewClientDebts && (
         <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
           <CardContent className="flex items-center gap-3 p-4 sm:gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40">
@@ -277,6 +291,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         {canViewSupplierDebts && (
           <Card className="min-w-0 rounded-2xl border bg-card shadow-sm">
@@ -304,10 +319,27 @@ export default function DashboardPage() {
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {t("dashboard.cashRegister")}
               </p>
-              <p className="truncate text-sm font-bold">{formatAmount(stats.cashCash)}</p>
-              <p className="truncate text-[10px] text-muted-foreground">
-                {t("dashboard.totalCash", { amount: formatAmount(stats.cashTotal) })}
-              </p>
+              {canSeeCashAmounts ? (
+                <>
+                  <p className="truncate text-sm font-bold">{formatAmount(stats.cashCash)}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {t("dashboard.totalCash", { amount: formatAmount(stats.cashTotal) })}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="truncate text-sm font-bold">
+                    {stats.isCashOpen
+                      ? t("reconciliation.sessionOpen")
+                      : t("reconciliation.sessionClosed")}
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {stats.isCashOpen && cashSession?.openedByName
+                      ? t("dashboard.cashOpenBy", { name: cashSession.openedByName })
+                      : t("dashboard.cashClosedShort")}
+                  </p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -332,12 +364,14 @@ export default function DashboardPage() {
             {t("dashboard.reports")}
           </Link>
         </Button>
+        <RoleGuard permission="manage:transfers">
         <Button variant="outline" size="sm" asChild className="rounded-xl">
           <Link href="/inventory/transfers/new">
             <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" />
             {t("dashboard.stockTransfer")}
           </Link>
         </Button>
+        </RoleGuard>
       </div>
 
       {lowStockItems.length > 0 && (
@@ -423,7 +457,11 @@ export default function DashboardPage() {
         <Card className="overflow-hidden rounded-2xl border bg-card shadow-sm lg:col-span-3">
           <CardHeader className="border-b bg-muted/20 p-4 sm:p-6">
             <CardTitle className="text-base">{t("dashboard.recentSales")}</CardTitle>
-            <CardDescription className="text-xs">{t("dashboard.recentTransactions")}</CardDescription>
+            <CardDescription className="text-xs">
+              {seeAllStoreSales
+                ? t("dashboard.recentTransactions")
+                : t("dashboard.recentMySales")}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 p-4 sm:p-6">
             {sales.slice(0, 6).map((sale) => (

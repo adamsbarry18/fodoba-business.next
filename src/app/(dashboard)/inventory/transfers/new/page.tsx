@@ -50,9 +50,16 @@ import { applyReturnSelection } from "@/hooks/use-return-selection"
 import { ENTITY_ROUTES } from "@/lib/navigation/return-to"
 import { BarcodeScanField } from "@/components/barcode/barcode-scan-field"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { useT } from "@/i18n/context"
+import { DecimalInput } from "@/components/ui/decimal-input"
+import { useT, useLocale } from "@/i18n/context"
 import { filterActiveStores } from "@/lib/store-utils"
 import { getProductUnitLabel } from "@/lib/product-utils"
+import {
+  QUANTITY_MIN,
+  formatQuantity,
+  isQuantityAtLeast,
+  roundQuantity,
+} from "@/lib/quantity-utils"
 
 type TransferFormValues = {
   productId: string
@@ -66,6 +73,7 @@ export default function NewTransferPage() {
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
   const t = useT()
+  const { locale } = useLocale()
   const formatUnit = (unit?: string) => getProductUnitLabel(unit, t)
 
   const transferFormSchema = useMemo(
@@ -75,7 +83,7 @@ export default function NewTransferPage() {
         destinationStoreId: z
           .string()
           .min(1, t("stockTransfer.validation.destinationRequired")),
-        quantity: z.coerce.number().min(1, t("stockTransfer.validation.quantityMin")),
+        quantity: z.coerce.number().min(QUANTITY_MIN, t("stockTransfer.validation.quantityMin")),
         reason: z.string().optional(),
       }),
     [t]
@@ -205,9 +213,11 @@ export default function NewTransferPage() {
   const onSubmit = async (values: TransferFormValues) => {
     if (!activeStore || !userProfile) return
 
-    if (values.quantity > sourceStock) {
+    if (!isQuantityAtLeast(sourceStock, values.quantity)) {
       form.setError("quantity", {
-        message: t("stockTransfer.insufficientStock", { stock: sourceStock }),
+        message: t("stockTransfer.insufficientStock", {
+          stock: formatQuantity(sourceStock, locale),
+        }),
       })
       return
     }
@@ -247,7 +257,8 @@ export default function NewTransferPage() {
     )
   }
 
-  const stockInsufficient = quantity > sourceStock
+  const stockInsufficient =
+    quantity > 0 && !isQuantityAtLeast(sourceStock, quantity)
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-8">
@@ -369,13 +380,14 @@ export default function NewTransferPage() {
                         <FormItem>
                           <FormLabel required>{t("stockTransfer.quantityToSend")}</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={sourceStock || undefined}
+                            <DecimalInput
+                              min={0}
                               className="h-10 rounded-xl font-headline font-bold"
-                              {...field}
-                              onChange={(e) => field.onChange(Number(e.target.value))}
+                              value={field.value ?? 0}
+                              onValueChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                             />
                           </FormControl>
                           {selectedProduct && (
@@ -453,7 +465,7 @@ export default function NewTransferPage() {
                             {t("stockTransfer.sourceStock")}
                           </p>
                           <p className="font-headline text-lg font-bold">
-                            {loadingStock ? "…" : sourceStock}
+                            {loadingStock ? "…" : formatQuantity(sourceStock, locale)}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {formatUnit(selectedProduct.unit)}
@@ -466,7 +478,10 @@ export default function NewTransferPage() {
                           <p className="font-headline text-lg font-bold">
                             {loadingStock || destStock === null
                               ? "…"
-                              : destStock + (quantity > 0 ? quantity : 0)}
+                              : formatQuantity(
+                                  roundQuantity(destStock + (quantity > 0 ? quantity : 0)),
+                                  locale
+                                )}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {t("stockTransfer.afterTransfer")}
@@ -480,7 +495,7 @@ export default function NewTransferPage() {
                           className="w-full justify-center text-[10px]"
                         >
                           {t("stockTransfer.transferDelta", {
-                            quantity,
+                            quantity: formatQuantity(quantity, locale),
                             unit: formatUnit(selectedProduct.unit),
                           })}
                         </StatusBadge>

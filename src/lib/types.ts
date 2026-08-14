@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { FieldValue, Timestamp } from "firebase/firestore";
 import { CURRENCY_CODES, type CurrencyCode } from "@/lib/constants/currencies";
+import { QUANTITY_MIN } from "@/lib/quantity-utils";
 
 export type { CurrencyCode };
 
@@ -230,7 +231,7 @@ export interface ExchangeRate {
 export const PurchaseItemSchema = z.object({
   productId: z.string(),
   name: z.string(),
-  quantity: z.number().min(0.01),
+  quantity: z.number().min(QUANTITY_MIN),
   unitCost: z.number().min(0),
   currency: z.enum(CURRENCY_CODES),
   exchangeRate: z.number().min(0.0001),
@@ -273,7 +274,7 @@ export type PriceTier = "retail" | "wholesale";
 export const SaleItemSchema = z.object({
   productId: z.string(),
   name: z.string(),
-  quantity: z.number(),
+  quantity: z.number().min(0),
   unitPrice: z.number(),
   total: z.number(),
   priceTier: z.enum(["retail", "wholesale"]).default("retail"),

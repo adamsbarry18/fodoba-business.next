@@ -8,6 +8,7 @@ import { Supplier, PurchaseItem, PurchaseExpense, CurrencyCode, Product } from "
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
@@ -451,15 +452,11 @@ export function PurchaseOrderForm({
                         <Label required className="text-xs">
                           {t("purchases.form.quantity")}
                         </Label>
-                        <Input
-                          type="number"
-                          min="0.01"
-                          step="any"
+                        <DecimalInput
+                          min={0}
                           className="h-10 rounded-xl"
                           value={item.quantity}
-                          onChange={(e) =>
-                            updateItem(index, "quantity", Number(e.target.value))
-                          }
+                          onValueChange={(qty) => updateItem(index, "quantity", qty)}
                         />
                       </div>
                       <div className="col-span-4 sm:col-span-2 space-y-1.5">

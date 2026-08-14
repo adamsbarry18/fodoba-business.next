@@ -15,31 +15,57 @@ import {
 import { db } from "@/lib/firebase/client";
 import { CashSession, CashMovement, UserProfile } from "@/lib/types";
 import { stripUndefined } from "@/lib/firestore-utils";
+import {
+  CASH_OPEN_STATUS_VALUES,
+  isCashSessionClosed,
+  pickLatestOpenSession,
+} from "@/lib/cash-session-utils";
 
 const SESSIONS_COLLECTION = "cash_sessions";
 const MOVEMENTS_COLLECTION = "cash_movements";
 
 export const CashService = {
   /**
-   * Vérifie s'il existe une session ouverte pour la boutique
+   * Sessions ouvertes du magasin (`open` legacy et `OPEN` canonique).
+   */
+  async listOpenSessions(storeId: string): Promise<CashSession[]> {
+    const snaps = await Promise.all(
+      CASH_OPEN_STATUS_VALUES.map((status) =>
+        getDocs(
+          query(
+            collection(db, SESSIONS_COLLECTION),
+            where("storeId", "==", storeId),
+            where("status", "==", status),
+            limit(20)
+          )
+        )
+      )
+    );
+    const byId = new Map<string, CashSession>();
+    for (const snap of snaps) {
+      for (const docSnap of snap.docs) {
+        byId.set(docSnap.id, docSnap.data() as CashSession);
+      }
+    }
+    return [...byId.values()];
+  },
+
+  /**
+   * Une seule session active par boutique (la plus récente si plusieurs).
    */
   async getActiveSession(storeId: string): Promise<CashSession | null> {
-    const q = query(
-      collection(db, SESSIONS_COLLECTION),
-      where("storeId", "==", storeId),
-      where("status", "==", "OPEN"),
-      limit(1)
-    );
-    const snap = await getDocs(q);
-    return snap.empty ? null : (snap.docs[0].data() as CashSession);
+    const openSessions = await this.listOpenSessions(storeId);
+    return pickLatestOpenSession(openSessions);
   },
 
   /**
    * Ouvre une nouvelle session de caisse
    */
   async openSession(storeId: string, user: UserProfile, initialBalances: Record<string, number>) {
-    const active = await this.getActiveSession(storeId);
-    if (active) throw new Error("Une session est déjà ouverte pour cette boutique.");
+    const openSessions = await this.listOpenSessions(storeId);
+    if (openSessions.length > 0) {
+      throw new Error("Une session est déjà ouverte pour cette boutique.");
+    }
 
     const sessionRef = doc(collection(db, SESSIONS_COLLECTION));
     const session: CashSession = {
@@ -67,7 +93,7 @@ export const CashService = {
       if (!snap.exists()) throw new Error("Session introuvable");
       
       const session = snap.data() as CashSession;
-      if (session.status === "CLOSED") throw new Error("Session déjà clôturée");
+      if (isCashSessionClosed(session)) throw new Error("Session déjà clôturée");
 
       const variances: Record<string, number> = {};
       Object.keys(session.expectedBalances).forEach(method => {

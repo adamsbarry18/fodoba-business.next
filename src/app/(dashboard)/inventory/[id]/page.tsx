@@ -11,7 +11,6 @@ import { getPrintLabels } from "@/lib/print-labels"
 import { Product, Store } from "@/lib/types"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
@@ -32,7 +31,7 @@ import { useCurrency } from "@/hooks/use-currency"
 import { usePermissions } from "@/hooks/use-permissions"
 import { toast } from "sonner"
 import { QRCodeSVG } from "qrcode.react"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import {
   buildDecomposedStock,
@@ -43,6 +42,8 @@ import { getProductUnitLabel, getRetailUnitsPerPack, normalizeProduct } from "@/
 import { ProductExpirationDisplay } from "@/components/inventory/product-expiration-display"
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper"
 import { cn } from "@/lib/utils"
+import { DecimalInput } from "@/components/ui/decimal-input"
+import { formatQuantity } from "@/lib/quantity-utils"
 
 export default function ProductDetailsPage() {
   const params = useParams()
@@ -52,6 +53,7 @@ export default function ProductDetailsPage() {
   const { userProfile } = useAuth()
   const { can } = usePermissions()
   const t = useT()
+  const { locale } = useLocale()
   const [product, setProduct] = useState<Product | null>(null)
   const [stores, setStores] = useState<Store[]>([])
   const [stockRecords, setStockRecords] = useState<Record<string, DecomposedStock>>({})
@@ -129,13 +131,6 @@ export default function ProductDetailsPage() {
       setDraftDetail(record.quantity)
     }
   }, [activeStore?.id, stockRecords, product])
-
-  const parseQtyInput = (raw: string) => {
-    if (raw.trim() === "") return 0
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed) || parsed < 0) return null
-    return parsed
-  }
 
   const handleApplyStockAdjustment = async () => {
     if (!activeStore || !product || !userProfile) return
@@ -505,14 +500,14 @@ export default function ProductDetailsPage() {
                         </div>
                         <p className="mt-1 text-[10px] text-gray-400">
                           {t("inventory.stockTotalUnits", {
-                            count: qty,
+                            count: formatQuantity(qty, locale),
                             unit: unitLabel,
                           })}
                         </p>
                       </>
                     ) : (
                       <div className="font-headline text-2xl font-bold text-gray-900">
-                        {qty}{" "}
+                        {formatQuantity(qty, locale)}{" "}
                         <span className="ml-1 text-[10px] font-bold uppercase text-gray-400">
                           {unitLabel}
                         </span>
@@ -592,17 +587,10 @@ export default function ProductDetailsPage() {
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
-                      <Input
-                        type="number"
+                      <DecimalInput
                         min={0}
-                        inputMode="numeric"
                         value={value}
-                        onChange={(e) => {
-                          const parsed = parseQtyInput(e.target.value)
-                          if (parsed === null) return
-                          onChange(parsed)
-                        }}
-                        onFocus={(e) => e.target.select()}
+                        onValueChange={onChange}
                         disabled={adjusting}
                         className="h-10 flex-1 border-0 bg-transparent text-center font-headline text-lg font-bold shadow-none focus-visible:ring-0"
                       />
@@ -635,13 +623,13 @@ export default function ProductDetailsPage() {
                                 t("inventory.stockBreakdownSeparator"),
                                 formatUnit
                               )
-                            : `${record.quantity} ${unitLabel}`}
+                            : `${formatQuantity(record.quantity, locale)} ${unitLabel}`}
                         </p>
                       </div>
                       {hasPackaging && (
                         <p className="text-xs text-muted-foreground">
                           {t("inventory.stockTotalUnits", {
-                            count: record.quantity,
+                            count: formatQuantity(record.quantity, locale),
                             unit: unitLabel,
                           })}
                         </p>
@@ -683,7 +671,7 @@ export default function ProductDetailsPage() {
                             t("inventory.stockBreakdownSeparator"),
                             formatUnit
                           ),
-                          count: draft.quantity,
+                          count: formatQuantity(draft.quantity, locale),
                           unit: unitLabel,
                         })}
                       </p>

@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Combobox } from "@/components/ui/combobox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FieldWithAdd } from "@/components/forms/field-with-add"
@@ -20,7 +21,8 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { computeInitialStockTotal, getProductUnitLabel, getRetailUnitsPerPack, PACKAGING_UNITS, RETAIL_UNITS } from "@/lib/product-utils"
 import { Coins, ImageIcon, Scale, Tags, X, Info, Package, ShoppingBag } from "lucide-react"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
+import { formatQuantity } from "@/lib/quantity-utils"
 import { cn } from "@/lib/utils"
 
 type ProductFormFieldsProps = {
@@ -50,6 +52,7 @@ export function ProductFormFields({
   canAdjustStock = true,
 }: ProductFormFieldsProps) {
   const t = useT()
+  const { locale } = useLocale()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -442,13 +445,11 @@ export function ProductFormFields({
                             : t("inventory.form.initialStock")}
                         </FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
+                          <DecimalInput
                             min={0}
-                            inputMode="numeric"
                             className="h-10 rounded-xl"
                             value={field.value ?? 0}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            onValueChange={field.onChange}
                           />
                         </FormControl>
                         <FormMessage />
@@ -465,18 +466,14 @@ export function ProductFormFields({
                             {t("inventory.form.detailStockLabeled", { unit: unitLabel })}
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
+                            <DecimalInput
                               min={0}
-                              inputMode="numeric"
                               placeholder="0"
                               className="h-10 rounded-xl"
-                              value={field.value ?? ""}
-                              onChange={(e) =>
-                                field.onChange(
-                                  e.target.value === "" ? undefined : Number(e.target.value)
-                                )
-                              }
+                              value={field.value ?? 0}
+                              allowEmpty
+                              onEmpty={() => field.onChange(undefined)}
+                              onValueChange={field.onChange}
                             />
                           </FormControl>
                           <FormMessage />
@@ -490,7 +487,7 @@ export function ProductFormFields({
                   <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
                     {t("inventory.form.computedStockTitle")}:{" "}
                     {t("inventory.form.computedStockValue", {
-                      total: computedStock,
+                      total: formatQuantity(computedStock, locale),
                       unit: unitLabel,
                     })}
                   </p>

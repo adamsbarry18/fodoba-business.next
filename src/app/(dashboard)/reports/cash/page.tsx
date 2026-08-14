@@ -25,7 +25,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { useStore } from "@/lib/contexts/StoreContext"
-import { getCashAuditSummary, getSessionTotals } from "@/lib/cash-session-utils"
+import { getCashAuditSummary, getSessionTotals, toCashSessionDate, isCashSessionOpen } from "@/lib/cash-session-utils"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT, useLocale } from "@/i18n/context"
@@ -241,19 +241,21 @@ function CashReportContent() {
               ) : (
                 paginatedSessions.map((s) => {
                   const { totalExpected, totalActual, totalVar } = getSessionTotals(s)
-                  const openedAt = s.openedAt?.toDate ? s.openedAt.toDate() : new Date()
+                  const openedAt = toCashSessionDate(s.openedAt)
 
                   return (
                     <TableRow key={s.id} className="hover:bg-muted/20">
                       <TableCell className="py-4 pl-6">
                         <div className="flex flex-col">
                           <span className="text-sm font-semibold">
-                            {format(openedAt, "dd MMM yyyy", { locale: dateLocale })}
+                            {openedAt
+                              ? format(openedAt, "dd MMM yyyy", { locale: dateLocale })
+                              : "-"}
                           </span>
                           <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                             <Calendar className="h-2.5 w-2.5" />
                             {t("reports.cash.atTime", {
-                              time: format(openedAt, "HH:mm"),
+                              time: openedAt ? format(openedAt, "HH:mm") : "-",
                             })}
                           </span>
                         </div>
@@ -285,7 +287,7 @@ function CashReportContent() {
                               ? undefined
                               : `${totalVar > 0 ? "+" : ""}${formatAmount(Math.abs(totalVar))}`}
                           </StatusBadge>
-                          {s.status === "OPEN" && (
+                          {isCashSessionOpen(s) && (
                             <span className="flex items-center gap-1 text-[9px] font-bold text-primary">
                               <ShieldCheck className="h-3 w-3" />
                               {t("reports.cash.sessionInProgress")}

@@ -19,8 +19,9 @@ import { toast } from "sonner"
 import { useCurrency } from "@/hooks/use-currency"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
 import { getProductUnitLabel } from "@/lib/product-utils"
+import { formatQuantity } from "@/lib/quantity-utils"
 import { PermissionGate } from "@/components/auth/permission-gate"
 import { useReportStoreScope } from "@/hooks/use-report-store-scope"
 import { REPORT_ALL_STORES } from "@/lib/report-utils"
@@ -29,6 +30,7 @@ const PAGE_SIZE = 50
 
 function InventoryReportContent() {
   const t = useT()
+  const { locale } = useLocale()
   const { formatAmount } = useCurrency()
   const {
     storeId,
@@ -187,7 +189,7 @@ function InventoryReportContent() {
                           {item.sku}
                         </TableCell>
                         <TableCell className="text-center font-bold">
-                          {item.stock}{" "}
+                          {formatQuantity(item.stock, locale)}{" "}
                           <span className="text-[10px] font-normal text-muted-foreground">
                             {getProductUnitLabel(item.unit, t)}
                           </span>

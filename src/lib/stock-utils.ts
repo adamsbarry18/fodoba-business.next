@@ -7,6 +7,11 @@ import {
   getRetailUnitsPerPack,
   normalizeProduct,
 } from "@/lib/product-utils"
+import {
+  formatQuantity,
+  isQuantityAtLeast,
+  roundQuantity,
+} from "@/lib/quantity-utils"
 
 export type DecomposedStock = {
   packagingQty: number
@@ -22,17 +27,17 @@ export function normalizeStockLevel(
   const ratio = Math.max(1, unitsPerPack)
 
   if (stock?.packagingQty != null && stock?.detailQty != null) {
-    const packagingQty = Math.max(0, stock.packagingQty)
-    const detailQty = Math.max(0, stock.detailQty)
+    const packagingQty = roundQuantity(Math.max(0, stock.packagingQty))
+    const detailQty = roundQuantity(Math.max(0, stock.detailQty))
     // `unitsPerPack` ici = unités détail / colis (conditionnement × qté détail)
     return {
       packagingQty,
       detailQty,
-      quantity: packagingQty * ratio + detailQty,
+      quantity: roundQuantity(packagingQty * ratio + detailQty),
     }
   }
 
-  const total = Math.max(0, stock?.quantity ?? 0)
+  const total = roundQuantity(Math.max(0, stock?.quantity ?? 0))
   if (ratio <= 1) {
     return { packagingQty: 0, detailQty: total, quantity: total }
   }
@@ -61,8 +66,8 @@ export function buildDecomposedStock(
   unitsPerPack: number,
   retailQtyFactor = 1
 ): DecomposedStock {
-  const packaging = Math.max(0, packagingQty)
-  const detail = Math.max(0, detailQty)
+  const packaging = roundQuantity(Math.max(0, packagingQty))
+  const detail = roundQuantity(Math.max(0, detailQty))
   const ratio = Math.max(1, unitsPerPack)
   return {
     packagingQty: packaging,
@@ -85,11 +90,11 @@ function usesPackagingTier(product: Product, tier: PriceTier): boolean {
 export function getSaleItemRetailQuantity(item: SaleItem, product: Product): number {
   const normalized = normalizeProduct(product)
   const tier = item.priceTier ?? "retail"
-  const qty = Math.max(0, Number(item.quantity) || 0)
+  const qty = roundQuantity(Math.max(0, Number(item.quantity) || 0))
   if (qty === 0) return 0
 
   if (usesPackagingTier(product, tier)) {
-    return qty * getRetailUnitsPerPack(normalized)
+    return roundQuantity(qty * getRetailUnitsPerPack(normalized))
   }
   return qty
 }
@@ -109,15 +114,15 @@ export function validateSaleItemAgainstStock(
   product: Product,
   item: SaleItem
 ): SaleStockValidationError | null {
-  const qty = Math.max(0, Number(item.quantity) || 0)
+  const qty = roundQuantity(Math.max(0, Number(item.quantity) || 0))
   if (qty <= 0) return "INVALID_QUANTITY"
 
   const tier = item.priceTier ?? "retail"
   if (usesPackagingTier(product, tier)) {
-    return stock.packagingQty >= qty ? null : "INSUFFICIENT_PACKAGING"
+    return isQuantityAtLeast(stock.packagingQty, qty) ? null : "INSUFFICIENT_PACKAGING"
   }
   // Détail : stock total disponible (vrac + contenu des conditionnements)
-  return stock.quantity >= qty ? null : "INSUFFICIENT_RETAIL"
+  return isQuantityAtLeast(stock.quantity, qty) ? null : "INSUFFICIENT_RETAIL"
 }
 
 /** Applique une ligne de vente sur le stock décomposé */
@@ -129,7 +134,7 @@ export function applySaleItemToDecomposedStock(
   const normalized = normalizeProduct(product)
   const ratio = getRetailUnitsPerPack(normalized)
   const tier = item.priceTier ?? "retail"
-  const qty = Math.max(0, Number(item.quantity) || 0)
+  const qty = roundQuantity(Math.max(0, Number(item.quantity) || 0))
 
   const error = validateSaleItemAgainstStock(stock, product, item)
   if (error === "INSUFFICIENT_RETAIL") {
@@ -182,7 +187,7 @@ export function applySaleReturnItemToDecomposedStock(
   const normalized = normalizeProduct(product)
   const ratio = getRetailUnitsPerPack(normalized)
   const tier = item.priceTier ?? "retail"
-  const qty = Math.max(0, Number(item.quantity) || 0)
+  const qty = roundQuantity(Math.max(0, Number(item.quantity) || 0))
   if (qty <= 0) return stock
 
   if (usesPackagingTier(product, tier)) {
@@ -216,7 +221,7 @@ export function applyPurchaseQuantityToDecomposedStock(
   purchaseQty: number
 ): DecomposedStock {
   const normalized = normalizeProduct(product)
-  const qty = Math.max(0, purchaseQty)
+  const qty = roundQuantity(Math.max(0, purchaseQty))
 
   if (normalized.unitsPerPack > 1 && normalized.packagingUnit) {
     return buildDecomposedStock(
@@ -244,9 +249,9 @@ export function applyRetailQuantityOut(
   unitsPerPack: number
 ): DecomposedStock {
   const ratio = Math.max(1, unitsPerPack)
-  const qty = Math.max(0, quantity)
+  const qty = roundQuantity(Math.max(0, quantity))
   if (qty === 0) return stock
-  if (stock.quantity < qty) {
+  if (!isQuantityAtLeast(stock.quantity, qty)) {
     throw new Error(`Stock insuffisant. Disponible : ${stock.quantity}`)
   }
 
@@ -254,11 +259,11 @@ export function applyRetailQuantityOut(
   let detailQty = stock.detailQty
   let remaining = qty
 
-  if (detailQty >= remaining) {
-    return buildDecomposedStock(packagingQty, detailQty - remaining, ratio)
+  if (isQuantityAtLeast(detailQty, remaining)) {
+    return buildDecomposedStock(packagingQty, roundQuantity(detailQty - remaining), ratio)
   }
 
-  remaining -= detailQty
+  remaining = roundQuantity(remaining - detailQty)
   detailQty = 0
 
   while (remaining > 0) {
@@ -267,10 +272,10 @@ export function applyRetailQuantityOut(
     }
     packagingQty -= 1
     if (remaining < ratio) {
-      detailQty = ratio - remaining
+      detailQty = roundQuantity(ratio - remaining)
       remaining = 0
     } else {
-      remaining -= ratio
+      remaining = roundQuantity(remaining - ratio)
     }
   }
 
@@ -283,7 +288,7 @@ export function applyRetailQuantityIn(
   quantity: number,
   unitsPerPack: number
 ): DecomposedStock {
-  const qty = Math.max(0, quantity)
+  const qty = roundQuantity(Math.max(0, quantity))
   if (qty === 0) return stock
   return buildDecomposedStock(stock.packagingQty, stock.detailQty + qty, unitsPerPack)
 }
@@ -300,10 +305,10 @@ export function formatDecomposedStockLabel(
   const unitLabel = formatUnit(normalized.unit)
 
   if (normalized.packagingUnit && normalized.unitsPerPack > 1 && stock.packagingQty > 0) {
-    parts.push(`${stock.packagingQty} ${packLabel}`)
+    parts.push(`${formatQuantity(stock.packagingQty)} ${packLabel}`)
   }
   if (stock.detailQty > 0) {
-    parts.push(`${stock.detailQty} ${unitLabel}`)
+    parts.push(`${formatQuantity(stock.detailQty)} ${unitLabel}`)
   }
   if (parts.length === 0) {
     return `0 ${unitLabel}`

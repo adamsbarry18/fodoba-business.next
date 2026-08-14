@@ -73,7 +73,8 @@ import { VisibleTableColumn } from "@/components/ui/visible-table-column"
 import { INVENTORY_TABLE_COLUMNS } from "@/lib/table-column-presets"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
-import { useT } from "@/i18n/context"
+import { useT, useLocale } from "@/i18n/context"
+import { formatQuantity } from "@/lib/quantity-utils"
 import { AppNotificationHelper } from "@/lib/notifications/app-notification-helper"
 import { ProductExpirationDisplay } from "@/components/inventory/product-expiration-display"
 
@@ -96,6 +97,7 @@ export default function InventoryPage() {
   const { isAdmin } = useAuth()
   const { can } = usePermissions()
   const t = useT()
+  const { locale } = useLocale()
 
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -541,7 +543,7 @@ export default function InventoryPage() {
                                     </span>
                                     <span className="text-[9px] text-muted-foreground">
                                       {t("inventory.stockTotalUnits", {
-                                        count: stock,
+                                        count: formatQuantity(stock, locale),
                                         unit: unitLabel,
                                       })}
                                     </span>
@@ -555,7 +557,7 @@ export default function InventoryPage() {
                                       status === "ok" && "text-foreground"
                                     )}
                                   >
-                                    {stock}
+                                    {formatQuantity(stock, locale)}
                                   </span>
                                 )}
                                 {status === "low" && (
