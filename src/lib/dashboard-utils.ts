@@ -1,5 +1,5 @@
 import type { Sale, Client, Supplier, CashSession } from "@/lib/types"
-import { isSaleCountedInRevenue } from "@/lib/sale-utils"
+import { isSaleCountedInRevenue, toSaleDate } from "@/lib/sale-utils"
 import {
   format,
   startOfDay,
@@ -19,9 +19,7 @@ export const DASHBOARD_TIME_RANGES: { value: DashboardTimeRange; label: string }
   { value: "12m", label: "dashboard.timeRange.12m" },
 ]
 
-export function toSaleDate(ts: Sale["timestamp"]): Date {
-  return ts?.toDate ? ts.toDate() : new Date(ts)
-}
+export { toSaleDate }
 
 export function getRangeInterval(timeRange: DashboardTimeRange, now = new Date()) {
   let startDate: Date

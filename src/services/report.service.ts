@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Sale, Product, Client, Supplier, StockLevel } from "@/lib/types";
-import { isSaleCountedInRevenue } from "@/lib/sale-utils";
+import { isSaleCountedInRevenue, isSaleInDateRange } from "@/lib/sale-utils";
 import {
   FIRESTORE_IN_QUERY_LIMIT,
   type ReportStoreFilter,
@@ -45,22 +45,33 @@ function scopedStoreIds(filter?: ReportStoreFilter): string[] | null {
 export const ReportService = {
   /**
    * Récupère les ventes filtrées pour le reporting.
-   * Toujours passer `storeId` ou `storeIds` pour un non-admin (règles Firestore).
+   * Boutique + dates : le filtre dates est appliqué côté client.
+   * Un `where(storeId) + where(timestamp)` exigerait un index composite
+   * non déployé, et échoue en permission-denied / failed-precondition pour un vendeur.
    */
   async getSalesReport(params: { 
     startDate: Date, 
     endDate: Date, 
   } & ReportStoreFilter) {
-    const constraints: QueryConstraint[] = [
-      where("timestamp", ">=", Timestamp.fromDate(params.startDate)),
-      where("timestamp", "<=", Timestamp.fromDate(params.endDate))
-    ];
+    const hasStoreScope = Boolean(params.storeId || params.storeIds?.length);
+    const constraints: QueryConstraint[] = [];
 
     applyStoreFilter(constraints, params);
 
+    if (!hasStoreScope) {
+      constraints.push(where("timestamp", ">=", Timestamp.fromDate(params.startDate)));
+      constraints.push(where("timestamp", "<=", Timestamp.fromDate(params.endDate)));
+    }
+
     const q = query(collection(db, "sales"), ...constraints);
     const snap = await getDocs(q);
-    const sales = snap.docs.map(doc => doc.data() as Sale);
+    let sales = snap.docs.map(doc => doc.data() as Sale);
+
+    if (hasStoreScope) {
+      sales = sales.filter((sale) =>
+        isSaleInDateRange(sale, params.startDate, params.endDate)
+      );
+    }
 
     sales.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
 
