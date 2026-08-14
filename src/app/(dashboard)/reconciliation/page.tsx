@@ -53,6 +53,7 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT, useLocale } from "@/i18n/context"
 import { getDateLocale } from "@/i18n/get-date-locale"
+import { RoleGuard } from "@/components/auth/role-guard"
 
 const MOVEMENTS_PAGE_SIZE = 25
 const HISTORY_PAGE_SIZE = 25
@@ -348,12 +349,14 @@ export default function ReconciliationPage() {
             <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             {t("reconciliation.refresh")}
           </Button>
-          <Button variant="outline" className="rounded-xl font-semibold" asChild>
-            <Link href="/reports/cash">
-              <FileText className="mr-2 h-4 w-4" />
-              {t("reconciliation.auditReport")}
-            </Link>
-          </Button>
+          <RoleGuard permission="view:reports:cash">
+            <Button variant="outline" className="rounded-xl font-semibold" asChild>
+              <Link href="/reports/cash">
+                <FileText className="mr-2 h-4 w-4" />
+                {t("reconciliation.auditReport")}
+              </Link>
+            </Button>
+          </RoleGuard>
 
           {activeSession ? (
             <>

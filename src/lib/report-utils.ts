@@ -5,6 +5,7 @@ import {
   History,
   Users,
   Truck,
+  Scale,
 } from "lucide-react"
 import type { Permission } from "@/lib/auth/permissions"
 import { matchesAnySearchField, prepareSearchQuery } from "@/lib/search-utils"
@@ -86,7 +87,80 @@ export const REPORT_CARDS: ReportCard[] = [
     permission: "view:reports:suppliers",
     category: "logistics",
   },
+  {
+    title: "reports.card.finance.title",
+    description: "reports.card.finance.desc",
+    icon: Scale,
+    href: "/reports/finance",
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-50 dark:bg-sky-950/40",
+    permission: "view:reports:global",
+    category: "finance",
+  },
 ]
+
+/** Valeur du filtre « toutes les boutiques » (admin) ou « toutes mes boutiques ». */
+export const REPORT_ALL_STORES = "all"
+
+/** Limite Firestore pour `where("storeId", "in", …)`. */
+export const FIRESTORE_IN_QUERY_LIMIT = 30
+
+export type ReportStoreQuery =
+  | { kind: "empty" }
+  | { kind: "unconstrained" }
+  | { kind: "single"; storeId: string }
+  | { kind: "in"; storeIds: string[] }
+
+export type ReportStoreFilter = {
+  storeId?: string
+  storeIds?: string[]
+}
+
+/**
+ * Périmètre Firestore d'un rapport :
+ * - admin + « toutes » → aucune contrainte storeId (règles `isAdmin`)
+ * - une boutique → `==`
+ * - plusieurs boutiques assignées → `in` (max 30)
+ * - vendeur/gérant sans boutique → pas de requête
+ */
+export function resolveReportStoreQuery(params: {
+  selectedStoreId: string
+  authorizedStoreIds: string[]
+  canViewAllStores: boolean
+}): ReportStoreQuery {
+  const authorized = [...new Set(params.authorizedStoreIds.filter(Boolean))]
+  const selected = params.selectedStoreId
+
+  if (selected && selected !== REPORT_ALL_STORES) {
+    if (!params.canViewAllStores && !authorized.includes(selected)) {
+      return { kind: "empty" }
+    }
+    return { kind: "single", storeId: selected }
+  }
+
+  if (params.canViewAllStores) {
+    return { kind: "unconstrained" }
+  }
+
+  if (authorized.length === 0) return { kind: "empty" }
+  if (authorized.length === 1) return { kind: "single", storeId: authorized[0] }
+  return { kind: "in", storeIds: authorized.slice(0, FIRESTORE_IN_QUERY_LIMIT) }
+}
+
+export function reportStoreQueryToFilter(
+  query: ReportStoreQuery
+): ReportStoreFilter | null {
+  switch (query.kind) {
+    case "empty":
+      return null
+    case "unconstrained":
+      return {}
+    case "single":
+      return { storeId: query.storeId }
+    case "in":
+      return { storeIds: query.storeIds }
+  }
+}
 
 export function filterReports(
   cards: ReportCard[],

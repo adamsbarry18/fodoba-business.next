@@ -5,29 +5,58 @@ import {
   query, 
   where,
   limit,  
-  Timestamp
+  Timestamp,
+  QueryConstraint,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Sale, Product, Client, Supplier, StockLevel } from "@/lib/types";
 import { isSaleCountedInRevenue } from "@/lib/sale-utils";
+import {
+  FIRESTORE_IN_QUERY_LIMIT,
+  type ReportStoreFilter,
+} from "@/lib/report-utils";
+
+const EMPTY_SALES_TOTALS = { revenue: 0, discount: 0, debt: 0, count: 0 };
+
+function applyStoreFilter(
+  constraints: QueryConstraint[],
+  filter?: ReportStoreFilter
+) {
+  if (filter?.storeId) {
+    constraints.push(where("storeId", "==", filter.storeId));
+    return;
+  }
+  const ids = filter?.storeIds?.filter(Boolean) ?? [];
+  if (ids.length === 1) {
+    constraints.push(where("storeId", "==", ids[0]));
+    return;
+  }
+  if (ids.length > 1) {
+    constraints.push(where("storeId", "in", ids.slice(0, FIRESTORE_IN_QUERY_LIMIT)));
+  }
+}
+
+function scopedStoreIds(filter?: ReportStoreFilter): string[] | null {
+  if (filter?.storeId) return [filter.storeId];
+  if (filter?.storeIds?.length) return filter.storeIds;
+  return null;
+}
 
 export const ReportService = {
   /**
    * Récupère les ventes filtrées pour le reporting.
+   * Toujours passer `storeId` ou `storeIds` pour un non-admin (règles Firestore).
    */
   async getSalesReport(params: { 
     startDate: Date, 
     endDate: Date, 
-    storeId?: string 
-  }) {
-    const constraints = [
+  } & ReportStoreFilter) {
+    const constraints: QueryConstraint[] = [
       where("timestamp", ">=", Timestamp.fromDate(params.startDate)),
       where("timestamp", "<=", Timestamp.fromDate(params.endDate))
     ];
 
-    if (params.storeId && params.storeId !== "all") {
-      constraints.push(where("storeId", "==", params.storeId));
-    }
+    applyStoreFilter(constraints, params);
 
     const q = query(collection(db, "sales"), ...constraints);
     const snap = await getDocs(q);
@@ -41,17 +70,24 @@ export const ReportService = {
       discount: acc.discount + (s.discount || 0),
       debt: acc.debt + (s.debtAmount || 0),
       count: acc.count + 1
-    }), { revenue: 0, discount: 0, debt: 0, count: 0 });
+    }), { ...EMPTY_SALES_TOTALS });
 
     return { sales, totals };
+  },
+
+  emptySalesReport() {
+    return { sales: [] as Sale[], totals: { ...EMPTY_SALES_TOTALS } };
   },
 
   /**
    * Analyse complète des stocks et valorisation (P3 État stock)
    */
-  async getInventoryReport(storeId?: string) {
-    const stocksQuery = storeId && storeId !== "all"
-      ? query(collection(db, "stocks"), where("storeId", "==", storeId))
+  async getInventoryReport(filter?: ReportStoreFilter) {
+    const stockConstraints: QueryConstraint[] = [];
+    applyStoreFilter(stockConstraints, filter);
+
+    const stocksQuery = stockConstraints.length > 0
+      ? query(collection(db, "stocks"), ...stockConstraints)
       : collection(db, "stocks");
 
     const [productsSnap, stocksSnap] = await Promise.all([
@@ -61,10 +97,11 @@ export const ReportService = {
 
     const products = productsSnap.docs.map(doc => doc.data() as Product);
     const stocks = stocksSnap.docs.map(doc => doc.data() as StockLevel);
+    const storeIds = scopedStoreIds(filter);
 
     const report = products.map(p => {
-      const relevantStocks = storeId && storeId !== "all" 
-        ? stocks.filter(s => s.productId === p.id && s.storeId === storeId)
+      const relevantStocks = storeIds
+        ? stocks.filter(s => s.productId === p.id && storeIds.includes(s.storeId))
         : stocks.filter(s => s.productId === p.id);
       
       const totalQty = relevantStocks.reduce((sum, s) => sum + s.quantity, 0);
@@ -93,11 +130,9 @@ export const ReportService = {
   /**
    * Top Produits les plus vendus (P3 Top produits)
    */
-  async getTopProducts(storeId?: string, limitCount = 10) {
-    const constraints = [];
-    if (storeId && storeId !== "all") {
-      constraints.push(where("storeId", "==", storeId));
-    }
+  async getTopProducts(filter?: ReportStoreFilter, limitCount = 10) {
+    const constraints: QueryConstraint[] = [];
+    applyStoreFilter(constraints, filter);
     constraints.push(limit(300));
 
     const q = query(collection(db, "sales"), ...constraints);

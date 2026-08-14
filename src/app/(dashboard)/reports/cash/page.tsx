@@ -31,10 +31,11 @@ import { TablePagination } from "@/components/ui/table-pagination"
 import { useT, useLocale } from "@/i18n/context"
 import { useCurrency } from "@/hooks/use-currency"
 import { getDateLocale } from "@/i18n/get-date-locale"
+import { PermissionGate } from "@/components/auth/permission-gate"
 
 const PAGE_SIZE = 25
 
-export default function CashReportPage() {
+function CashReportContent() {
   const t = useT()
   const { formatAmount } = useCurrency()
   const { locale } = useLocale()
@@ -311,3 +312,12 @@ export default function CashReportPage() {
     </div>
   )
 }
+
+export default function CashReportPage() {
+  return (
+    <PermissionGate permission="view:reports:cash">
+      <CashReportContent />
+    </PermissionGate>
+  )
+}
+

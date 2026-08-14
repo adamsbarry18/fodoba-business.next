@@ -21,10 +21,11 @@ import { useCurrency } from "@/hooks/use-currency"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT } from "@/i18n/context"
+import { PermissionGate } from "@/components/auth/permission-gate"
 
 const PAGE_SIZE = 50
 
-export default function SupplierDebtReportPage() {
+function SupplierDebtReportContent() {
   const t = useT()
   const { formatAmount } = useCurrency()
   const [loading, setLoading] = useState(true)
@@ -193,3 +194,12 @@ export default function SupplierDebtReportPage() {
     </div>
   )
 }
+
+export default function SupplierDebtReportPage() {
+  return (
+    <PermissionGate permission="view:reports:suppliers">
+      <SupplierDebtReportContent />
+    </PermissionGate>
+  )
+}
+

@@ -19,8 +19,9 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { useCurrency } from "@/hooks/use-currency"
 import { useT } from "@/i18n/context"
+import { PermissionGate } from "@/components/auth/permission-gate"
 
-export default function FinanceReportPage() {
+function FinanceReportContent() {
   const t = useT()
   const { formatAmount } = useCurrency()
   const [loading, setLoading] = useState(true)
@@ -181,3 +182,12 @@ export default function FinanceReportPage() {
     </div>
   )
 }
+
+export default function FinanceReportPage() {
+  return (
+    <PermissionGate permission="view:reports:global">
+      <FinanceReportContent />
+    </PermissionGate>
+  )
+}
+

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ReportService } from "@/services/report.service"
 import { StoreService } from "@/services/store.service"
 import { SaleService } from "@/services/sale.service"
-import { Sale, Store } from "@/lib/types"
+import { Sale } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -67,7 +67,10 @@ import { canCancelOrCorrectSale } from "@/lib/sale-utils"
 import { useStore } from "@/lib/contexts/StoreContext"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { RoleGuard } from "@/components/auth/role-guard"
+import { PermissionGate } from "@/components/auth/permission-gate"
 import { useSaleTicket } from "@/hooks/use-sale-ticket"
+import { useReportStoreScope } from "@/hooks/use-report-store-scope"
+import { REPORT_ALL_STORES } from "@/lib/report-utils"
 import { useT } from "@/i18n/context"
 
 const PAGE_SIZE = 50
@@ -117,15 +120,23 @@ const SALES_REPORT_COLUMN_LABEL_KEYS: Record<string, string> = {
   actions: "reports.sales.colActions",
 }
 
-export default function SalesReportPage() {
+function SalesReportContent() {
   const t = useT()
   const router = useRouter()
   const { formatAmount } = useCurrency()
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
+  const {
+    storeId,
+    setStoreId,
+    stores,
+    filter,
+    showStoreFilter,
+    showAllOption,
+    canViewAllStores,
+  } = useReportStoreScope()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<Sale[]>([])
-  const [stores, setStores] = useState<Store[]>([])
   const { printTicket, printingId } = useSaleTicket(stores)
   const [totals, setTotals] = useState({ revenue: 0, discount: 0, debt: 0, count: 0 })
 
@@ -133,7 +144,6 @@ export default function SalesReportPage() {
   const [startDate, setStartDate] = useState(defaultRange.startDate)
   const [endDate, setEndDate] = useState(defaultRange.endDate)
   const [periodPreset, setPeriodPreset] = useState<SalesPeriodPreset | "custom">("30d")
-  const [storeId, setStoreId] = useState("all")
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null)
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
   const [cancelReason, setCancelReason] = useState("")
@@ -158,26 +168,32 @@ export default function SalesReportPage() {
     visibleColumnCount,
   } = useTranslatedTableColumns("sales-report", SALES_REPORT_TABLE_COLUMNS, SALES_REPORT_COLUMN_LABEL_KEYS)
 
+  const allStoresLabel = t(
+    canViewAllStores ? "reports.sales.storeAll" : "reports.sales.storeMine"
+  )
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [salesRes, storesRes] = await Promise.all([
-        ReportService.getSalesReport({
-          startDate: startOfDay(new Date(`${startDate}T00:00:00`)),
-          endDate: endOfDay(new Date(`${endDate}T00:00:00`)),
-          storeId,
-        }),
-        StoreService.listStores(100),
-      ])
+      if (!filter) {
+        const empty = ReportService.emptySalesReport()
+        setSales(empty.sales)
+        setTotals(empty.totals)
+        return
+      }
+      const salesRes = await ReportService.getSalesReport({
+        startDate: startOfDay(new Date(`${startDate}T00:00:00`)),
+        endDate: endOfDay(new Date(`${endDate}T00:00:00`)),
+        ...filter,
+      })
       setSales(salesRes.sales)
       setTotals(salesRes.totals)
-      setStores(storesRes.stores)
     } catch {
       toast.error(t("common.errorLoading"))
     } finally {
       setLoading(false)
     }
-  }, [endDate, startDate, storeId, t])
+  }, [endDate, filter, startDate, t])
 
   useEffect(() => {
     void loadData()
@@ -272,7 +288,7 @@ export default function SalesReportPage() {
     setExporting("pdf")
     try {
       const reportStore =
-        storeId === "all"
+        storeId === REPORT_ALL_STORES
           ? null
           : stores.find((store) => store.id === storeId) ??
             (await StoreService.getStore(storeId))
@@ -284,8 +300,8 @@ export default function SalesReportPage() {
           startDate: format(new Date(startDate), "dd/MM/yyyy"),
           endDate: format(new Date(endDate), "dd/MM/yyyy"),
           storeLabel:
-            storeId === "all"
-              ? t("reports.sales.storeAll")
+            storeId === REPORT_ALL_STORES
+              ? allStoresLabel
               : reportStore?.name || storeId,
         },
         getPrintLabels(t), formatAmount
@@ -356,7 +372,7 @@ export default function SalesReportPage() {
                 </Button>
               ))}
             </div>
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className={cn("grid gap-6", showStoreFilter ? "md:grid-cols-4" : "md:grid-cols-3")}>
               <div className="space-y-2">
                 <Label>{t("reports.sales.startDate")}</Label>
                 <Input
@@ -379,22 +395,26 @@ export default function SalesReportPage() {
                   }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>{t("reports.sales.store")}</Label>
-                <Select value={storeId} onValueChange={setStoreId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("reports.sales.storeAll")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("reports.sales.storeAll")}</SelectItem>
-                    {stores.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {showStoreFilter && (
+                <div className="space-y-2">
+                  <Label>{t("reports.sales.store")}</Label>
+                  <Select value={storeId} onValueChange={setStoreId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={allStoresLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {showAllOption && (
+                        <SelectItem value={REPORT_ALL_STORES}>{allStoresLabel}</SelectItem>
+                      )}
+                      {stores.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-end">
                 <Button className="w-full" onClick={loadData} disabled={loading}>
                   {loading ? (
@@ -712,3 +732,12 @@ export default function SalesReportPage() {
     </div>
   )
 }
+
+export default function SalesReportPage() {
+  return (
+    <PermissionGate permission="view:reports:store">
+      <SalesReportContent />
+    </PermissionGate>
+  )
+}
+

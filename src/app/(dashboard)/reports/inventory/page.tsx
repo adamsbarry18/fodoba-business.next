@@ -3,8 +3,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { ReportService } from "@/services/report.service"
-import { StoreService } from "@/services/store.service"
-import { Store } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -23,12 +21,24 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { TablePagination } from "@/components/ui/table-pagination"
 import { useT } from "@/i18n/context"
 import { getProductUnitLabel } from "@/lib/product-utils"
+import { PermissionGate } from "@/components/auth/permission-gate"
+import { useReportStoreScope } from "@/hooks/use-report-store-scope"
+import { REPORT_ALL_STORES } from "@/lib/report-utils"
 
 const PAGE_SIZE = 50
 
-export default function InventoryReportPage() {
+function InventoryReportContent() {
   const t = useT()
   const { formatAmount } = useCurrency()
+  const {
+    storeId,
+    setStoreId,
+    stores,
+    filter,
+    showStoreFilter,
+    showAllOption,
+    canViewAllStores,
+  } = useReportStoreScope()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<
     Array<{
@@ -41,8 +51,6 @@ export default function InventoryReportPage() {
       valuation: number
     }>
   >([])
-  const [stores, setStores] = useState<Store[]>([])
-  const [storeId, setStoreId] = useState("all")
   const [totalValuation, setTotalValuation] = useState(0)
 
   const itemsResetKey = `${storeId}|${items.length}`
@@ -56,22 +64,27 @@ export default function InventoryReportPage() {
     rangeEnd,
   } = useClientPagination(items, { pageSize: PAGE_SIZE, resetKey: itemsResetKey })
 
+  const allStoresLabel = t(
+    canViewAllStores ? "reports.inventory.storeAll" : "reports.inventory.storeMine"
+  )
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [reportRes, storesRes] = await Promise.all([
-        ReportService.getInventoryReport(storeId),
-        StoreService.listStores(100),
-      ])
+      if (!filter) {
+        setItems([])
+        setTotalValuation(0)
+        return
+      }
+      const reportRes = await ReportService.getInventoryReport(filter)
       setItems(reportRes.items)
       setTotalValuation(reportRes.totalValuation)
-      setStores(storesRes.stores)
     } catch {
       toast.error(t("common.errorGeneration"))
     } finally {
       setLoading(false)
     }
-  }, [storeId, t])
+  }, [filter, t])
 
   useEffect(() => {
     void loadData()
@@ -99,30 +112,34 @@ export default function InventoryReportPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
-        <Card className="md:col-span-1">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xs uppercase text-muted-foreground">
-              {t("reports.inventory.storeFilter")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <Select value={storeId} onValueChange={setStoreId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("reports.inventory.storeAll")}</SelectItem>
-                {stores.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
+        {showStoreFilter && (
+          <Card className="md:col-span-1">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-xs uppercase text-muted-foreground">
+                {t("reports.inventory.storeFilter")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {showAllOption && (
+                    <SelectItem value={REPORT_ALL_STORES}>{allStoresLabel}</SelectItem>
+                  )}
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="border-emerald-200 bg-emerald-50 md:col-span-3">
+        <Card className={`border-emerald-200 bg-emerald-50 ${showStoreFilter ? "md:col-span-3" : "md:col-span-4"}`}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="flex items-center text-xs font-bold uppercase text-emerald-700">
               <CircleDollarSign className="mr-1 h-3 w-3" /> {t("reports.inventory.statTotalValue")}
@@ -204,5 +221,13 @@ export default function InventoryReportPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function InventoryReportPage() {
+  return (
+    <PermissionGate permission="view:stock">
+      <InventoryReportContent />
+    </PermissionGate>
   )
 }
