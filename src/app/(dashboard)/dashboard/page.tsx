@@ -84,7 +84,10 @@ export default function DashboardPage() {
   const { formatAmount } = useCurrency()
   const canViewSupplierDebts = can("view:reports:suppliers")
   const canViewClientDebts = can("view:reports:clients")
-  const seeAllStoreSales = canViewAllStoreSales(userProfile?.role)
+  const uid = userProfile?.uid
+  const role = userProfile?.role
+  const storeId = activeStore?.id
+  const seeAllStoreSales = canViewAllStoreSales(role)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<DashboardTimeRange>(
     seeAllStoreSales ? "7d" : "24h"
@@ -107,8 +110,6 @@ export default function DashboardPage() {
   } satisfies ChartConfig), [t])
 
   const loadDashboardData = useCallback(async () => {
-    const uid = userProfile?.uid
-    const storeId = activeStore?.id
     if (!uid || !storeId) {
       setLoading(false)
       return
@@ -129,7 +130,7 @@ export default function DashboardPage() {
 
       setClients(clientsRes)
       setSuppliers(suppliersRes)
-      setSales(filterSalesForRole(salesRes.sales, userProfile?.role, uid))
+      setSales(filterSalesForRole(salesRes.sales, role, uid))
       setCashSession(sessionRes)
 
       const productIds = productsRes.products.map((p) => p.id)
@@ -152,13 +153,13 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [userProfile?.uid, userProfile?.role, activeStore?.id, canViewSupplierDebts, canViewClientDebts, t])
+  }, [uid, role, storeId, canViewSupplierDebts, canViewClientDebts, t])
 
   useEffect(() => {
     void loadDashboardData()
   }, [loadDashboardData])
 
-  const canSeeCashAmounts = canViewCashBalances(userProfile?.role, cashSession, userProfile?.uid)
+  const canSeeCashAmounts = canViewCashBalances(role, cashSession, uid)
   const stats = useMemo(
     () => getDashboardStats(sales, clients, suppliers, timeRange, cashSession, dateLocale),
     [sales, clients, suppliers, timeRange, cashSession, dateLocale]

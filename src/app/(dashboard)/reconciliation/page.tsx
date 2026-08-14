@@ -108,13 +108,13 @@ export default function ReconciliationPage() {
   )
 
   const uid = userProfile?.uid
+  const storeId = activeStore?.id
   const canSeeBalances = canViewCashBalances(role, activeSession, uid)
   const canClose = canCloseCashSession(role, activeSession, uid)
   const canFund = canManageCashFund(role, activeSession, uid)
   const canSeeHistory = canViewCashHistory(role)
 
   const loadData = useCallback(async () => {
-    const storeId = activeStore?.id
     if (!storeId) {
       setActiveSession(null)
       setMovements([])
@@ -135,7 +135,7 @@ export default function ReconciliationPage() {
       setActiveSession(session)
       setHistory(pastSessions)
 
-      if (session && canViewCashBalances(role, session, userProfile?.uid)) {
+      if (session && canViewCashBalances(role, session, uid)) {
         const moves = await CashService.getMovements(session.id, storeId)
         setMovements(moves)
         const initialActual: Record<string, string> = {}
@@ -153,7 +153,7 @@ export default function ReconciliationPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeStore?.id, role, t, userProfile?.uid])
+  }, [storeId, role, t, uid])
 
   useEffect(() => {
     void loadData()

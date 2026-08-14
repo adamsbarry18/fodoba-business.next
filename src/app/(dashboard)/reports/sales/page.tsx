@@ -131,7 +131,9 @@ function SalesReportContent() {
   const { formatAmount } = useCurrency()
   const { activeStore } = useStore()
   const { userProfile } = useAuth()
-  const seeAllStoreSales = canViewAllStoreSales(userProfile?.role)
+  const uid = userProfile?.uid
+  const role = userProfile?.role
+  const seeAllStoreSales = canViewAllStoreSales(role)
   const {
     storeId,
     setStoreId,
@@ -195,8 +197,8 @@ function SalesReportContent() {
       })
       const visibleSales = filterSalesForRole(
         salesRes.sales,
-        userProfile?.role,
-        userProfile?.uid
+        role,
+        uid
       )
       setSales(visibleSales)
       setTotals(computeSalesReportTotals(visibleSales))
@@ -205,7 +207,7 @@ function SalesReportContent() {
     } finally {
       setLoading(false)
     }
-  }, [endDate, filter, startDate, t, userProfile?.role, userProfile?.uid])
+  }, [endDate, filter, startDate, t, role, uid])
 
   useEffect(() => {
     void loadData()
